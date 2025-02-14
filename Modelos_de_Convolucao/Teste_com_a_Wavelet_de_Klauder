@@ -2,9 +2,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 def wavelet_klauder(t, f1, f2):
-  
-w(t) = [2 f2 sin(2π f2 t) - 2 f1 sin(2π f1 t)] / (π t)
-w(0) = 4 (f2² - f1²)
+      w(t) = [2 f2 sin(2π f2 t) - 2 f1 sin(2π f1 t)] / (π t)
+      w = np.where(np.abs(t) < 1e-10,
+                 4 * (f2**2 - f1**2),
+                 (2 * f2 * np.sin(2 * np.pi * f2 * t) - 2 * f1 * np.sin(2 * np.pi * f1 * t)) / (np.pi * t))
+    return w
 
 # Definindo parâmetros
 dt = 0.0001       # intervalo de tempo (s)
@@ -83,5 +85,12 @@ plt.show()
 synthetic_trace = np.convolve(reflectivity_imp, w, mode="same")
 
 # Plot do sismograma sintético
-plt.f
+plt.figure()
+plt.plot(synthetic_trace, t, '--')
+plt.title("Sismograma Sintético")
+plt.xlabel("Amplitude")
+plt.ylabel("Tempo (s)")
+plt.gca().invert_yaxis()
+plt.show()
+
 
