@@ -15,7 +15,7 @@ w = wavelet_ricker(t - 0.05, 25) # wavelet amplitude
 # Wavelet Plot 
 plt.figure()
 plt.plot(t, w, '--.')
-plt.title("Wavelet de Ricker (f = 60 Hz)")
+plt.title("Wavelet de Ricker (f = 25 Hz)")
 plt.xlabel("Tempo (s)")
 plt.ylabel("Amplitude")
 plt.show()
