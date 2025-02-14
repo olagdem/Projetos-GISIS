@@ -10,7 +10,7 @@ def wavelet_ricker(t, f):
 dt = 0.0001       # samples
 nt = 1001         # time samples
 t = np.linspace(0, nt*dt, nt, endpoint=False) # time
-w = wavelet_ricker(t - 0.05, 60) # wavelet amplitude 
+w = wavelet_ricker(t - 0.05, 25) # wavelet amplitude 
 
 # Wavelet Plot 
 plt.figure()
