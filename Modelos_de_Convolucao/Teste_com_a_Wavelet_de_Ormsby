@@ -1,1 +1,93 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+def wavelet_ormsby(t, f1, f2, f3, f4):
+    
+w(t) = [ f4*sin(2πf4*t) - f3*sin(2πf3*t) - f2*sin(2πf2*t) + f1*sin(2πf1*t) ] / (πt)
+w(0) = 2*(f4² - f3² - f2² + f1²)
+
+# Definindo parâmetros
+dt = 0.0001       # intervalo de tempo (s)
+nt = 1001         # número de amostras de tempo
+t = np.linspace(0, nt*dt, nt, endpoint=False)  # vetor tempo
+
+# Gerando a wavelet de Ormsby (deslocamento temporal de 0.05 s)
+# Usando as frequências de canto: f1 = 30 Hz, f2 = 50 Hz, f3 = 70 Hz, f4 = 90 Hz.
+w = wavelet_ormsby(t - 0.05, 30, 50, 70, 90)
+
+# Plot da wavelet
+plt.figure()
+plt.plot(t, w, '--.')
+plt.title("Wavelet de Ormsby (f1=30 Hz, f2=50 Hz, f3=70 Hz, f4=90 Hz)")
+plt.xlabel("Tempo (s)")
+plt.ylabel("Amplitude")
+plt.show()
+
+# Definindo os estados constantes de velocidade
+vel = np.zeros(nt)
+vel[0:nt//3] = 1500
+vel[nt//3:2*nt//3] = 2500
+vel[2*nt//3:] = 2000
+
+# Plot do modelo de velocidade
+plt.figure()
+plt.plot(t, vel, '--')
+plt.title("Modelo de Velocidade")
+plt.xlabel("Tempo (s)")
+plt.ylabel("Velocidade (m/s)")
+plt.gca().invert_yaxis()
+plt.show()
+
+# Definindo os estados constantes de densidade
+dens = np.zeros(nt)
+dens[0:nt//3] = 2000 
+dens[nt//3:2*nt//3] = 2400 
+dens[2*nt//3:] = 2200
+
+# Plot do modelo de densidade
+plt.figure()
+plt.plot(t, dens, '--')
+plt.title("Modelo de Densidade")
+plt.xlabel("Tempo (s)")
+plt.ylabel("Densidade (kg/m³)")
+plt.gca().invert_yaxis()
+plt.show()
+
+# Calculando a impedância acústica
+impedance = vel * dens
+
+# Plot da impedância
+plt.figure()
+plt.plot(t, impedance, '--')
+plt.title("Impedância do Meio")
+plt.xlabel("Tempo (s)")
+plt.ylabel("Impedância (kg/m²·s)")
+plt.gca().invert_yaxis()
+plt.show()
+
+# Processando a refletividade a partir da impedância
+# R = (Z2 - Z1) / (Z2 + Z1)
+reflectivity_imp = np.zeros(nt)
+reflectivity_imp[1:] = (impedance[1:] - impedance[:-1]) / (impedance[1:] + impedance[:-1])
+
+# Plot da refletividade
+plt.figure()
+plt.plot(reflectivity_imp, t, '--')
+plt.title("Refletividade Calculada a partir da Impedância")
+plt.xlabel("Coeficiente de Reflexão")
+plt.ylabel("Tempo (s)")
+plt.gca().invert_yaxis()
+plt.show()
+
+# Convolução da refletividade com a wavelet para gerar o sismograma sintético
+synthetic_trace = np.convolve(reflectivity_imp, w, mode="same")
+
+# Plot do sismograma sintético
+plt.figure()
+plt.plot(synthetic_trace, t, '--')
+plt.title("Sismograma Sintético")
+plt.xlabel("Amplitude")
+plt.ylabel("Tempo (s)")
+plt.gca().invert_yaxis()
+plt.show()
 
