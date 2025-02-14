@@ -1,27 +1,28 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-def wavelet_klauder(t, f1, f2):
-
-w(t) = [2 f2 sin(2π f2 t) - 2 f1 sin(2π f1 t)] / (π t)
-w = np.where(np.abs(t) < 1e-10,
-                 4 * (f2**2 - f1**2),
-                 (2 * f2 * np.sin(2 * np.pi * f2 * t) - 2 * f1 * np.sin(2 * np.pi * f1 * t)) / (np.pi * t))
-return w
+def wavelet_ormsby(t, f1, f2, f3, f4):
+      w(t) = [ f4*sin(2πf4*t) - f3*sin(2πf3*t) - f2*sin(2πf2*t) + f1*sin(2πf1*t) ] / (πt)
+      w(0) = 2*(f4² - f3² - f2² + f1²)
+    w = np.where(np.abs(t) < 1e-10,
+                 2*(f4**2 - f3**2 - f2**2 + f1**2),
+                 (f4 * np.sin(2*np.pi*f4*t) - f3 * np.sin(2*np.pi*f3*t) - 
+                  f2 * np.sin(2*np.pi*f2*t) + f1 * np.sin(2*np.pi*f1*t)) / (np.pi*t))
+    return w
 
 # Definindo parâmetros
 dt = 0.0001       # intervalo de tempo (s)
 nt = 1001         # número de amostras de tempo
 t = np.linspace(0, nt*dt, nt, endpoint=False)  # vetor tempo
 
-# Gerando a wavelet de Klauder (deslocamento temporal de 0.05 s)
-# Usando f1 = 30 Hz e f2 = 90 Hz para definir a banda passante.
-w = wavelet_klauder(t - 0.05, 30, 90)
+# Gerando a wavelet de Ormsby (deslocamento temporal de 0.05 s)
+# Usando as frequências de canto: f1 = 30 Hz, f2 = 50 Hz, f3 = 70 Hz, f4 = 90 Hz.
+w = wavelet_ormsby(t - 0.05, 30, 50, 70, 90)
 
 # Plot da wavelet
 plt.figure()
 plt.plot(t, w, '--.')
-plt.title("Wavelet de Klauder (f1 = 30 Hz, f2 = 90 Hz)")
+plt.title("Wavelet de Ormsby (f1=30 Hz, f2=50 Hz, f3=70 Hz, f4=90 Hz)")
 plt.xlabel("Tempo (s)")
 plt.ylabel("Amplitude")
 plt.show()
@@ -56,7 +57,7 @@ plt.ylabel("Densidade (kg/m³)")
 plt.gca().invert_yaxis()
 plt.show()
 
-# Calculando a impedância acústica 
+# Calculando a impedância acústica
 impedance = vel * dens
 
 # Plot da impedância
@@ -93,4 +94,3 @@ plt.xlabel("Amplitude")
 plt.ylabel("Tempo (s)")
 plt.gca().invert_yaxis()
 plt.show()
-
