@@ -29,7 +29,6 @@ def wavelet_ormsby(t, f1, f2, f3, f4):
     return wavelet
 
 #-----------------------------------------------------------------
-# Main script
 
 # Defining parameters for the synthetic seismogram
 dt = 0.0001       # sampling interval in seconds
