@@ -2,18 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 def wavelet_klauder(t, f1, f2, T_sweep):
-    """
-    Generates a Klauder wavelet by computing the autocorrelation
-    of a linear sweep (chirp) that runs from frequency f1 to f2 over T_sweep seconds.
-    
-    Parameters:
-      t       : time vector (assumed to have constant spacing)
-      f1, f2  : terminal low and high frequencies (Hz)
-      T_sweep : duration of the input sweep (seconds)
-      
-    Returns:
-      wavelet : the resulting Klauder wavelet (interpolated onto time vector t)
-    """
+
     dt = t[1] - t[0]
     # Number of samples for the sweep
     n_sweep = int(T_sweep / dt)
