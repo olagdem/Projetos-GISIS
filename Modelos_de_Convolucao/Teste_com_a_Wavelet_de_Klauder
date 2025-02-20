@@ -33,7 +33,6 @@ def wavelet_klauder(t, f1, f2, T_sweep):
     return wavelet
 
 #-----------------------------------------------------------------
-
 # Define parameters for the synthetic seismogram
 dt = 0.0001       # sampling interval in seconds
 nt = 5001         # number of samples
@@ -41,15 +40,15 @@ T_total = nt * dt # total record length in seconds
 t = np.linspace(0, T_total, nt, endpoint=False)  # time vector for seismogram
 t_shifted = t - (T_total / 2)  # center time vector about zero
 
-# Parameters for the Klauder wavelet (choose as in Ryan, 1994 :contentReference[oaicite:1]{index=1})
+# Parameters for the Klauder wavelet (choose as in Ryan, 1994)
 f1 = 10      # terminal low frequency (Hz)
 f2 = 40      # terminal high frequency (Hz)
-T_sweep = 7  # sweep duration in seconds (50 ms)
+T_sweep = 7  # sweep duration in seconds
 
 # Generate the Klauder wavelet
 w = wavelet_klauder(t_shifted, f1, f2, T_sweep)
 
-# Wavelet Plot
+# Wavelet Plot (Time-domain filter)
 plt.figure()
 plt.plot(t_shifted, w, '--.')
 plt.title(f"Klauder Wavelet (f1 = {f1} Hz, f2 = {f2} Hz, T_sweep = {T_sweep*1000:.0f} ms)")
@@ -119,3 +118,17 @@ plt.ylabel("Time (s)")
 plt.gca().invert_yaxis()
 plt.show()
 
+# Amplitude Spectrum of the Klauder Filter
+W = np.fft.fft(w)
+W_shifted = np.fft.fftshift(W)
+freq = np.fft.fftfreq(nt, d=dt)
+freq_shifted = np.fft.fftshift(freq)
+
+plt.figure()
+plt.plot(freq_shifted, np.abs(W_shifted))
+plt.title("Amplitude Spectrum of the Klauder Filter")
+plt.xlabel("Frequency (Hz)")
+plt.ylabel("Amplitude")
+plt.xlim(0, 100) 
+plt.grid(True)
+plt.show()
