@@ -33,7 +33,6 @@ def wavelet_klauder(t, f1, f2, T_sweep):
     return wavelet
 
 #-----------------------------------------------------------------
-# Main script
 
 # Define parameters for the synthetic seismogram
 dt = 0.0001       # sampling interval in seconds
