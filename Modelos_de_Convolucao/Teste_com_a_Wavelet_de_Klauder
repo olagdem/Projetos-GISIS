@@ -4,19 +4,13 @@ import matplotlib.pyplot as plt
 def wavelet_klauder(t, f1, f2, T_sweep):
 
     dt = t[1] - t[0]
-    # Number of samples for the sweep
-    n_sweep = int(T_sweep / dt)
+    n_sweep = int(T_sweep / dt)     # Number of samples for the sweep
     t_sweep = np.linspace(0, T_sweep, n_sweep, endpoint=False)
-    # Generate a linear chirp (sweep) from f1 to f2
-    sweep = np.sin(2 * np.pi * (f1 * t_sweep + 0.5 * (f2 - f1) / T_sweep * t_sweep**2))
-    # Compute the autocorrelation of the sweep (full mode gives a symmetric result)
+    sweep = np.sin(2 * np.pi * (f1 * t_sweep + 0.5 * (f2 - f1) / T_sweep * t_sweep**2))   # Sweep from f2 - f1
+    # Compute the autocorrelation of the sweep 
     ac = np.correlate(sweep, sweep, mode='full')
-    # Create lag time vector corresponding to the autocorrelation
-    tau = np.arange(-n_sweep + 1, n_sweep) * dt
-    # Normalize so the maximum amplitude is 1
+    tau = np.arange(-n_sweep + 1, n_sweep) * dt    # Lag-time vector
     ac = ac / np.max(np.abs(ac))
-    
-    # Interpolate the autocorrelation onto the provided time vector t
     wavelet = np.interp(t, tau, ac)
     
     return wavelet
