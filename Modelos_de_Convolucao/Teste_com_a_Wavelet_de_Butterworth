@@ -1,1 +1,137 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Define the Butterworth wavelet function 
+def wavelet_butterworth(t, f1, f2, N1=3, N2=4):
+    dt = t[1] - t[0]
+    nt = len(t)
+    # Define frequency axis for FFT (Hz)
+    freq = np.fft.fftfreq(nt, d=dt)
+    freq_shifted = np.fft.fftshift(freq)
+    # Avoid division by zero
+    eps = 1e-10
+    abs_freq = np.abs(freq_shifted)
+    # Butterworth high-pass component (rolls off below f1)
+    H_hp = 1.0 / np.sqrt(1 + (f1 / (abs_freq + eps))**(2 * N1))
+    # Butterworth low-pass component (rolls off above f2)
+    H_lp = 1.0 / np.sqrt(1 + (abs_freq / f2)**(2 * N2))
+    # Combined bandpass amplitude response
+    H_shifted = H_hp * H_lp
+    # Reorder frequency response for IFFT
+    H = np.fft.ifftshift(H_shifted)
+    # Inverse FFT to obtain time-domain impulse response
+    h = np.fft.ifft(H)
+    h = np.real(h)  # Discard any negligible imaginary parts
+    # Shift the wavelet to center it in time
+    h = np.fft.fftshift(h)
+    # Normalize the wavelet
+    h = h / np.max(np.abs(h))
+    return h, H_shifted, freq_shifted
+
+# Define parameters 
+dt = 0.0001       # Sampling interval in seconds
+nt = 5001         # Number of samples
+T_total = nt * dt # Total record length in seconds
+t = np.linspace(0, T_total, nt, endpoint=False)  # Time vector for seismogram
+t_centered = t - (T_total / 2)  # Center time vector about zero
+
+# Butterworth filter parameters
+f1 = 10    # Low cut frequency (Hz)
+f2 = 40    # High cut frequency (Hz)
+N1 = 3     # Order for high-pass component
+N2 = 4     # Order for low-pass component
+
+# Generate the Butterworth wavelet
+w, H_amp, freq = wavelet_butterworth(t_centered, f1, f2, N1, N2)
+
+plt.figure()
+plt.plot(t_centered, w, '--.')
+plt.title(f"Butterworth Wavelet (f1 = {f1} Hz, f2 = {f2} Hz, N1 = {N1}, N2 = {N2})")
+plt.xlabel("Time (s)")
+plt.ylabel("Normalized Amplitude")
+plt.grid(True)
+plt.show()
+
+# Velocity Model
+vel = np.zeros(nt)
+vel[0:nt//3] = 1500     
+vel[nt//3:2*nt//3] = 2500  
+vel[2*nt//3:] = 2000     
+
+plt.figure()
+plt.plot(t, vel, '--')
+plt.title("Velocity Model")
+plt.xlabel("Time (s)")
+plt.ylabel("Velocity (m/s)")
+plt.gca().invert_yaxis()
+plt.grid(True)
+plt.show()
+
+# Density Model
+dens = np.zeros(nt)
+dens[0:nt//3] = 2000      # First third: 2000 kg/m³
+dens[nt//3:2*nt//3] = 2400 # Second third: 2400 kg/m³
+dens[2*nt//3:] = 2200      # Last third: 2200 kg/m³
+
+plt.figure()
+plt.plot(t, dens, '--')
+plt.title("Density Model")
+plt.xlabel("Time (s)")
+plt.ylabel("Density (kg/m³)")
+plt.gca().invert_yaxis()
+plt.grid(True)
+plt.show()
+
+# Impedance Model
+impedance = vel * dens
+
+plt.figure()
+plt.plot(t, impedance, '--')
+plt.title("Acoustic Impedance")
+plt.xlabel("Time (s)")
+plt.ylabel("Impedance (kg/(m²·s))")
+plt.gca().invert_yaxis()
+plt.grid(True)
+plt.show()
+
+# Reflectivity Model
+# Reflectivity: R = (Z2 - Z1) / (Z2 + Z1)
+reflectivity = np.zeros(nt)
+reflectivity[1:] = (impedance[1:] - impedance[:-1]) / (impedance[1:] + impedance[:-1])
+
+plt.figure()
+plt.plot(reflectivity, t, '--')
+plt.title("Reflectivity from Impedance")
+plt.xlabel("Reflection Coefficient")
+plt.ylabel("Time (s)")
+plt.gca().invert_yaxis()
+plt.grid(True)
+plt.show()
+
+# Convolution
+synthetic_trace = np.convolve(reflectivity, w, mode="same")
+
+plt.figure()
+plt.plot(synthetic_trace, t, '--')
+plt.title("Synthetic Seismogram (Convolution)")
+plt.xlabel("Amplitude")
+plt.ylabel("Time (s)")
+plt.gca().invert_yaxis()
+plt.grid(True)
+plt.show()
+
+# Amplitude Spectrum
+W = np.fft.fft(w)
+W_shifted = np.fft.fftshift(W)
+freq_w = np.fft.fftfreq(nt, d=dt)
+freq_w_shifted = np.fft.fftshift(freq_w)
+
+plt.figure()
+plt.plot(freq_w_shifted, np.abs(W_shifted), '--.')
+plt.title("Amplitude Spectrum of the Butterworth Wavelet")
+plt.xlabel("Frequency (Hz)")
+plt.ylabel("Amplitude")
+plt.xlim(0, 100)  # Display positive frequencies up to 100 Hz
+plt.grid(True)
+plt.show()
 
