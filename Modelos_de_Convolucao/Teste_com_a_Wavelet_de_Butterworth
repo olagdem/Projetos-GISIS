@@ -8,23 +8,17 @@ def wavelet_butterworth(t, f1, f2, N1=3, N2=4):
     # Define frequency axis for FFT (Hz)
     freq = np.fft.fftfreq(nt, d=dt)
     freq_shifted = np.fft.fftshift(freq)
-    # Avoid division by zero
+    # Avoid division by zero!!!
     eps = 1e-10
     abs_freq = np.abs(freq_shifted)
-    # Butterworth high-pass component (rolls off below f1)
     H_hp = 1.0 / np.sqrt(1 + (f1 / (abs_freq + eps))**(2 * N1))
-    # Butterworth low-pass component (rolls off above f2)
     H_lp = 1.0 / np.sqrt(1 + (abs_freq / f2)**(2 * N2))
-    # Combined bandpass amplitude response
     H_shifted = H_hp * H_lp
-    # Reorder frequency response for IFFT
     H = np.fft.ifftshift(H_shifted)
-    # Inverse FFT to obtain time-domain impulse response
+    # Inverse FFT
     h = np.fft.ifft(H)
-    h = np.real(h)  # Discard any negligible imaginary parts
-    # Shift the wavelet to center it in time
+    h = np.real(h) # Set only the real parts
     h = np.fft.fftshift(h)
-    # Normalize the wavelet
     h = h / np.max(np.abs(h))
     return h, H_shifted, freq_shifted
 
@@ -36,10 +30,10 @@ t = np.linspace(0, T_total, nt, endpoint=False)  # Time vector for seismogram
 t_centered = t - (T_total / 2)  # Center time vector about zero
 
 # Butterworth filter parameters
-f1 = 10    # Low cut frequency (Hz)
-f2 = 40    # High cut frequency (Hz)
-N1 = 3     # Order for high-pass component
-N2 = 4     # Order for low-pass component
+f1 = 10   
+f2 = 40    
+N1 = 3     
+N2 = 4   
 
 # Generate the Butterworth wavelet
 w, H_amp, freq = wavelet_butterworth(t_centered, f1, f2, N1, N2)
@@ -69,9 +63,9 @@ plt.show()
 
 # Density Model
 dens = np.zeros(nt)
-dens[0:nt//3] = 2000      # First third: 2000 kg/m³
-dens[nt//3:2*nt//3] = 2400 # Second third: 2400 kg/m³
-dens[2*nt//3:] = 2200      # Last third: 2200 kg/m³
+dens[0:nt//3] = 2000      
+dens[nt//3:2*nt//3] = 2400 
+dens[2*nt//3:] = 2200     
 
 plt.figure()
 plt.plot(t, dens, '--')
