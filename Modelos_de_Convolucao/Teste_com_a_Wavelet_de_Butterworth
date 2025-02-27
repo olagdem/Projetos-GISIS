@@ -125,6 +125,6 @@ plt.plot(freq_w_shifted, np.abs(W_shifted), '--.')
 plt.title("Amplitude Spectrum of the Butterworth Wavelet")
 plt.xlabel("Frequency (Hz)")
 plt.ylabel("Amplitude")
-plt.xlim(0, 100)  # Display positive frequencies up to 100 Hz
+plt.xlim(0, 100) 
 plt.grid(True)
 plt.show()
