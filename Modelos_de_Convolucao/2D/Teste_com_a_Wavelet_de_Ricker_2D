@@ -1,1 +1,100 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Função que gera a wavelet de Ricker (1D)
+def wavelet_ricker(t, f):
+    aux = (np.pi * f * t)**2
+    return (1 - 2 * aux) * np.exp(-aux)
+
+# Parâmetros
+dt = 0.0001         # intervalo de amostragem (s)
+nt = 1001           # número de amostras temporais
+nx = 50             # número de amostras espaciais (número de traços)
+t = np.linspace(0, nt*dt, nt, endpoint=False)  # vetor tempo
+x = np.linspace(0, nx-1, nx)                    # vetor espaço (posição dos traços)
+
+# Gerando a wavelet de Ricker (1D) com deslocamento temporal
+f = 25
+w = wavelet_ricker(t - 0.05, f)
+
+# Modelo 2D de Velocidade: camadas verticais replicadas para cada traço
+vel = np.zeros((nt, nx))
+vel[0:nt//3, :] = 1500
+vel[nt//3:2*nt//3, :] = 2500
+vel[2*nt//3:, :] = 2000
+
+# Modelo 2D de Densidade: mesmo particionamento vertical
+dens = np.zeros((nt, nx))
+dens[0:nt//3, :] = 2000
+dens[nt//3:2*nt//3, :] = 2400
+dens[2*nt//3:, :] = 2200
+
+# Cálculo da Impedância (produto de velocidade e densidade)
+impedance = vel * dens
+
+# Cálculo da Refletividade: R = (Z2 - Z1) / (Z2 + Z1)
+# A operação é realizada ao longo da direção temporal para cada traço (coluna)
+reflectivity = np.zeros((nt, nx))
+reflectivity[1:, :] = (impedance[1:, :] - impedance[:-1, :]) / (impedance[1:, :] + impedance[:-1, :])
+
+# Gerando o sismograma sintético 2D:
+# Convolução de cada traço de refletividade com a wavelet de Ricker
+synthetic_section = np.zeros_like(reflectivity)
+for i in range(nx):
+    synthetic_section[:, i] = np.convolve(reflectivity[:, i], w, mode="same")
+
+#Plots
+
+#Wavelet de Ricker (1D)
+plt.figure()
+plt.plot(t, w, '--.')
+plt.title("Wavelet de Ricker (f = 25 Hz)")
+plt.xlabel("Tempo (s)")
+plt.ylabel("Amplitude")
+plt.show()
+
+#Modelo de Velocidade 2D
+plt.figure()
+plt.imshow(vel, extent=[0, nx, t[-1], t[0]], aspect='auto')
+plt.title("Modelo de Velocidade")
+plt.xlabel("Posição (nx)")
+plt.ylabel("Tempo (s)")
+plt.colorbar(label="Velocidade (m/s)")
+plt.show()
+
+#Modelo de Densidade 2D
+plt.figure()
+plt.imshow(dens, extent=[0, nx, t[-1], t[0]], aspect='auto')
+plt.title("Modelo de Densidade")
+plt.xlabel("Posição (nx)")
+plt.ylabel("Tempo (s)")
+plt.colorbar(label="Densidade (kg/m³)")
+plt.show()
+
+#Impedância 2D
+plt.figure()
+plt.imshow(impedance, extent=[0, nx, t[-1], t[0]], aspect='auto')
+plt.title("Impedância do Meio")
+plt.xlabel("Posição (nx)")
+plt.ylabel("Tempo (s)")
+plt.colorbar(label="Impedância (kg/m²·s)")
+plt.show()
+
+#Refletividade calculada a partir da impedância
+plt.figure()
+plt.imshow(reflectivity, extent=[0, nx, t[-1], t[0]], aspect='auto', cmap='seismic')
+plt.title("Refletividade Calculada a partir da Impedância")
+plt.xlabel("Posição (nx)")
+plt.ylabel("Tempo (s)")
+plt.colorbar(label="Coeficiente de Reflexão")
+plt.show()
+
+#Sismograma Sintético 2D
+plt.figure()
+plt.imshow(synthetic_section, extent=[0, nx, t[-1], t[0]], aspect='auto', cmap='gray')
+plt.title("Sismograma Sintético 2D")
+plt.xlabel("Posição (nx)")
+plt.ylabel("Tempo (s)")
+plt.colorbar(label="Amplitude")
+plt.show()
 
