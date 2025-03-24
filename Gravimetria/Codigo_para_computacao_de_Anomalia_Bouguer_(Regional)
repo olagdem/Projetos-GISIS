@@ -2,12 +2,17 @@ import os
 import numpy as np
 import pandas as pd
 import rasterio
+import matplotlib.pyplot as plt
 from functools import reduce
+from pyproj import CRS, Transformer
 
+# ------------------------------------------------------------------------------
+# Function to read a single TIFF file into a DataFrame with geographic coordinates.
+# ------------------------------------------------------------------------------
 def tif_to_dataframe(file, value_name):
     """
-    Reads a single TIFF file and returns a DataFrame with the geographic coordinates (Latitude, Longitude)
-    and the pixel values under the column specified by value_name.
+    Reads a single TIFF file and returns a DataFrame with geographic coordinates
+    (Latitude, Longitude) and pixel values in the column specified by value_name.
     """
     with rasterio.open(file) as src:
         data = src.read(1)
@@ -17,10 +22,9 @@ def tif_to_dataframe(file, value_name):
         latitudes = []
         longitudes = []
         values = []
-        # Loop over all pixels
         for row in range(height):
             for col in range(width):
-                # Compute geographic coordinates (lon, lat) from pixel coordinate (col, row)
+                # Convert pixel coordinates (col, row) to geographic coordinates (lon, lat)
                 lon, lat = transform * (col, row)
                 latitudes.append(lat)
                 longitudes.append(lon)
@@ -31,19 +35,56 @@ def tif_to_dataframe(file, value_name):
         'Longitude': longitudes,
         value_name: values
     })
-    
     return df
 
 def round_coords(df, decimals=6):
     """
-    Round the coordinate columns to help merging pixels that represent the same location.
+    Round the coordinate columns to help merge pixels from different files.
     """
     df['Latitude'] = df['Latitude'].round(decimals)
     df['Longitude'] = df['Longitude'].round(decimals)
     return df
 
+# ------------------------------------------------------------------------------
+# Custom projection function.
+# ------------------------------------------------------------------------------
+def geographic2projected(crs_input, geoCoords):
+    """
+    Convert geographic coordinates to a custom projected coordinate system.
+    
+    Parameters:
+        crs_input (str): Input coordinate reference system (e.g., "EPSG:4326").
+        geoCoords (list): List containing two arrays: [Latitude values, Longitude values].
+    
+    Returns:
+        crs_custom: Custom CRS object.
+        projCoords: Array with projected coordinates [Easting, Northing].
+    """
+    # Ensure input arrays are numpy arrays.
+    lat = np.asarray(geoCoords[0])
+    lon = np.asarray(geoCoords[1])
+    
+    # Calculate the median longitude to center the projection.
+    median_lon = np.median(lon)
+    
+    # Define a custom Transverse Mercator projection centered at the median longitude.
+    crs_custom = CRS.from_string(f"+proj=tmerc +lon_0={median_lon} +datum=WGS84")
+    
+    # Create the input CRS object.
+    input_crs = CRS.from_user_input(crs_input)
+    
+    # Create a transformer from the input CRS to the custom projection.
+    transformer = Transformer.from_crs(input_crs, crs_custom, always_xy=True)
+    
+    # Perform a vectorized transformation.
+    x, y = transformer.transform(lon, lat)
+    projCoords = np.array([x, y])
+    
+    return crs_custom, projCoords
 
-# Filepath to the TIFF files.
+# ------------------------------------------------------------------------------
+# File paths for the six TIFF files (update these paths to your actual locations)
+# ------------------------------------------------------------------------------
 elevation_files = [
     r'c:\Users\lzlag\Documents\Maciços Alcalinos (Elevation).tif',
     r'c:\Users\lzlag\Documents\Recorte Maciços (Elevation).tif'
@@ -54,10 +95,12 @@ bathymetry_files = [
 ]
 gravity_files = [
     r'c:\Users\lzlag\Documents\Maciços Alcalinos (Free-Air).tif',
-    r'C:\Users\lzlag\Documents\Recorte Maciços (Free-Air).tif'
+    r'C:\Users\lzlag\Documents\Recorte Maciços (Free-Air)..tif'
 ]
 
-# Creating individual DataFrames first
+# ------------------------------------------------------------------------------
+# Create individual DataFrames for each file.
+# ------------------------------------------------------------------------------
 df_elev1 = tif_to_dataframe(elevation_files[0], 'Elevation1')
 df_elev2 = tif_to_dataframe(elevation_files[1], 'Elevation2')
 df_bathy1 = tif_to_dataframe(bathymetry_files[0], 'Bathymetry1')
@@ -65,22 +108,55 @@ df_bathy2 = tif_to_dataframe(bathymetry_files[1], 'Bathymetry2')
 df_grav1 = tif_to_dataframe(gravity_files[0], 'Gravity1')
 df_grav2 = tif_to_dataframe(gravity_files[1], 'Gravity2')
 
-# Rounding coordinates
+# Round the coordinates for each DataFrame.
 dfs = [df_elev1, df_elev2, df_bathy1, df_bathy2, df_grav1, df_grav2]
 dfs = [round_coords(df) for df in dfs]
 
-# Merge both DataFrames
+# ------------------------------------------------------------------------------
+# Merge the DataFrames on the Latitude and Longitude columns using an outer join.
+# ------------------------------------------------------------------------------
 df_merged = reduce(lambda left, right: pd.merge(left, right, on=['Latitude', 'Longitude'], how='outer'), dfs)
 
-# Fill missing values with 0 
+# For the primary group files (Elevation1, Bathymetry1, Gravity1), fill missing values with 0.
 df_merged['Elevation1'] = df_merged['Elevation1'].fillna(0)
 df_merged['Bathymetry1'] = df_merged['Bathymetry1'].fillna(0)
 df_merged['Gravity1'] = df_merged['Gravity1'].fillna(0)
 
-# Optionally, sort the resulting DataFrame by latitude and longitude.
+# Optionally sort the DataFrame by geographic coordinates.
 df_merged.sort_values(by=['Latitude', 'Longitude'], inplace=True)
 
-# Display the head of the DataFrame.
-print(df_merged.head())
+# ------------------------------------------------------------------------------
+# Plot the original geographic (lon-lat) gravity data.
+# ------------------------------------------------------------------------------
+plt.figure()
+sc = plt.scatter(df_merged['Longitude'].values, df_merged['Latitude'].values, 
+                 c=df_merged['Gravity1'].values, s=1)
+plt.gca().set_aspect("equal")
+plt.colorbar(sc, label="mGal")
+plt.xlabel('Longitude')
+plt.ylabel('Latitude')
+plt.title('Gravity Data Plot (Geographic)')
+plt.show()
 
+# ------------------------------------------------------------------------------
+# Use the custom projection function to convert geographic coordinates.
+# ------------------------------------------------------------------------------
+input_crs = "EPSG:4326"
+crs_custom, proj_coords = geographic2projected(input_crs, [df_merged['Latitude'].values, df_merged['Longitude'].values])
 
+# Add the projected coordinates (Easting, Northing) to the DataFrame.
+df_merged['Easting'] = proj_coords[0]
+df_merged['Northing'] = proj_coords[1]
+
+# ------------------------------------------------------------------------------
+# Plot the gravity data in the custom projected (plain) coordinates.
+# ------------------------------------------------------------------------------
+plt.figure()
+sc_proj = plt.scatter(df_merged['Easting'].values, df_merged['Northing'].values, 
+                      c=df_merged['Gravity1'].values, s=1)
+plt.gca().set_aspect("equal")
+plt.colorbar(sc_proj, label="mGal")
+plt.xlabel('Easting')
+plt.ylabel('Northing')
+plt.title('Gravity Data Plot (Projected)')
+plt.show()
