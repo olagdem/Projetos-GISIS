@@ -1,1 +1,106 @@
+import os
+import numpy as np
+import pandas as pd
+import rasterio
+
+def check_files(files, ref_shape, ref_transform):
+    """
+    Ensure that all files in the list have the same shape and transform as the reference.
+    """
+    for f in files:
+        with rasterio.open(f) as src:
+            data = src.read(1)
+            if data.shape != ref_shape:
+                raise ValueError(f"File {f} has a different shape.")
+            if not np.allclose(src.transform, ref_transform, rtol=1e-5):
+                raise ValueError(f"File {f} has a different spatial transform.")
+
+def tif_to_dataframe_multiple(elevation_files, bathymetry_files, gravity_files):
+    """
+    Reads two elevation, two bathymetry, and two gravity TIFF files,
+    and returns a DataFrame with their data alongside pixel latitudes and longitudes.
+    """
+    # Use the first elevation file as the reference for shape and transform.
+    with rasterio.open(elevation_files[0]) as src_ref:
+        ref_array = src_ref.read(1)
+        ref_shape = ref_array.shape
+        ref_transform = src_ref.transform
+
+    # Check that all files in each group have the same spatial parameters.
+    check_files(elevation_files, ref_shape, ref_transform)
+    check_files(bathymetry_files, ref_shape, ref_transform)
+    check_files(gravity_files, ref_shape, ref_transform)
+
+    # Read arrays from all files.
+    elevation_arrays = []
+    for f in elevation_files:
+        with rasterio.open(f) as src:
+            elevation_arrays.append(src.read(1))
+
+    bathymetry_arrays = []
+    for f in bathymetry_files:
+        with rasterio.open(f) as src:
+            bathymetry_arrays.append(src.read(1))
+
+    gravity_arrays = []
+    for f in gravity_files:
+        with rasterio.open(f) as src:
+            gravity_arrays.append(src.read(1))
+
+    # Prepare lists to store data.
+    height, width = ref_shape
+    latitudes, longitudes = [], []
+    elev1, elev2 = [], []
+    bathy1, bathy2 = [], []
+    grav1, grav2 = [], []
+
+    # Iterate over each pixel.
+    for row in range(height):
+        for col in range(width):
+            # Convert pixel coordinate (col, row) to geographic coordinate (lon, lat)
+            lon, lat = ref_transform * (col, row)
+            latitudes.append(lat)
+            longitudes.append(lon)
+            elev1.append(elevation_arrays[0][row, col])
+            elev2.append(elevation_arrays[1][row, col])
+            bathy1.append(bathymetry_arrays[0][row, col])
+            bathy2.append(bathymetry_arrays[1][row, col])
+            grav1.append(gravity_arrays[0][row, col])
+            grav2.append(gravity_arrays[1][row, col])
+
+    # Create DataFrame with one row per pixel.
+    df = pd.DataFrame({
+        'Latitude': latitudes,
+        'Longitude': longitudes,
+        'Elevation1': elev1,
+        'Elevation2': elev2,
+        'Bathymetry1': bathy1,
+        'Bathymetry2': bathy2,
+        'Gravity1': grav1,
+        'Gravity2': grav2
+    })
+    
+    return df
+
+# -------------------------------------------------------------------------------
+# Example paths (update these paths to your actual file locations)
+# -------------------------------------------------------------------------------
+elevation_files = [
+    r'F:\Path\To\Elevation1.tif',
+    r'F:\Path\To\Elevation2.tif'
+]
+bathymetry_files = [
+    r'F:\Path\To\Bathymetry1.tif',
+    r'F:\Path\To\Bathymetry2.tif'
+]
+gravity_files = [
+    r'F:\Path\To\Gravity1.tif',
+    r'F:\Path\To\Gravity2.tif'
+]
+
+# Create the DataFrame.
+df = tif_to_dataframe_multiple(elevation_files, bathymetry_files, gravity_files)
+
+# Optionally, display or process the DataFrame.
+print(df.head())
 
