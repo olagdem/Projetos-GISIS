@@ -2,105 +2,85 @@ import os
 import numpy as np
 import pandas as pd
 import rasterio
+from functools import reduce
 
-def check_files(files, ref_shape, ref_transform):
+def tif_to_dataframe(file, value_name):
     """
-    Ensure that all files in the list have the same shape and transform as the reference.
+    Reads a single TIFF file and returns a DataFrame with the geographic coordinates (Latitude, Longitude)
+    and the pixel values under the column specified by value_name.
     """
-    for f in files:
-        with rasterio.open(f) as src:
-            data = src.read(1)
-            if data.shape != ref_shape:
-                raise ValueError(f"File {f} has a different shape.")
-            if not np.allclose(src.transform, ref_transform, rtol=1e-5):
-                raise ValueError(f"File {f} has a different spatial transform.")
+    with rasterio.open(file) as src:
+        data = src.read(1)
+        transform = src.transform
+        height, width = data.shape
 
-def tif_to_dataframe_multiple(elevation_files, bathymetry_files, gravity_files):
-    """
-    Reads two elevation, two bathymetry, and two gravity TIFF files,
-    and returns a DataFrame with their data alongside pixel latitudes and longitudes.
-    """
-    # Use the first elevation file as the reference for shape and transform.
-    with rasterio.open(elevation_files[0]) as src_ref:
-        ref_array = src_ref.read(1)
-        ref_shape = ref_array.shape
-        ref_transform = src_ref.transform
-
-    # Check that all files in each group have the same spatial parameters.
-    check_files(elevation_files, ref_shape, ref_transform)
-    check_files(bathymetry_files, ref_shape, ref_transform)
-    check_files(gravity_files, ref_shape, ref_transform)
-
-    # Read arrays from all files.
-    elevation_arrays = []
-    for f in elevation_files:
-        with rasterio.open(f) as src:
-            elevation_arrays.append(src.read(1))
-
-    bathymetry_arrays = []
-    for f in bathymetry_files:
-        with rasterio.open(f) as src:
-            bathymetry_arrays.append(src.read(1))
-
-    gravity_arrays = []
-    for f in gravity_files:
-        with rasterio.open(f) as src:
-            gravity_arrays.append(src.read(1))
-
-    # Prepare lists to store data.
-    height, width = ref_shape
-    latitudes, longitudes = [], []
-    elev1, elev2 = [], []
-    bathy1, bathy2 = [], []
-    grav1, grav2 = [], []
-
-    # Iterate over each pixel.
-    for row in range(height):
-        for col in range(width):
-            # Convert pixel coordinate (col, row) to geographic coordinate (lon, lat)
-            lon, lat = ref_transform * (col, row)
-            latitudes.append(lat)
-            longitudes.append(lon)
-            elev1.append(elevation_arrays[0][row, col])
-            elev2.append(elevation_arrays[1][row, col])
-            bathy1.append(bathymetry_arrays[0][row, col])
-            bathy2.append(bathymetry_arrays[1][row, col])
-            grav1.append(gravity_arrays[0][row, col])
-            grav2.append(gravity_arrays[1][row, col])
-
-    # Create DataFrame with one row per pixel.
+        latitudes = []
+        longitudes = []
+        values = []
+        # Loop over all pixels
+        for row in range(height):
+            for col in range(width):
+                # Compute geographic coordinates (lon, lat) from pixel coordinate (col, row)
+                lon, lat = transform * (col, row)
+                latitudes.append(lat)
+                longitudes.append(lon)
+                values.append(data[row, col])
+    
     df = pd.DataFrame({
         'Latitude': latitudes,
         'Longitude': longitudes,
-        'Elevation1': elev1,
-        'Elevation2': elev2,
-        'Bathymetry1': bathy1,
-        'Bathymetry2': bathy2,
-        'Gravity1': grav1,
-        'Gravity2': grav2
+        value_name: values
     })
     
     return df
 
-# -------------------------------------------------------------------------------
-# Example paths (update these paths to your actual file locations)
-# -------------------------------------------------------------------------------
+def round_coords(df, decimals=6):
+    """
+    Round the coordinate columns to help merging pixels that represent the same location.
+    """
+    df['Latitude'] = df['Latitude'].round(decimals)
+    df['Longitude'] = df['Longitude'].round(decimals)
+    return df
+
+
+# Filepath to the TIFF files.
 elevation_files = [
-    r'F:\Path\To\Elevation1.tif',
-    r'F:\Path\To\Elevation2.tif'
+    r'c:\Users\lzlag\Documents\Maciços Alcalinos (Elevation).tif',
+    r'c:\Users\lzlag\Documents\Recorte Maciços (Elevation).tif'
 ]
 bathymetry_files = [
-    r'F:\Path\To\Bathymetry1.tif',
-    r'F:\Path\To\Bathymetry2.tif'
+    r'c:\Users\lzlag\Documents\Maciços Alcalinos (Bathymetry).tif',
+    r'c:\Users\lzlag\Documents\Recorte Maciços (Bathymetry).tif'
 ]
 gravity_files = [
-    r'F:\Path\To\Gravity1.tif',
-    r'F:\Path\To\Gravity2.tif'
+    r'c:\Users\lzlag\Documents\Maciços Alcalinos (Free-Air).tif',
+    r'C:\Users\lzlag\Documents\Recorte Maciços (Free-Air).tif'
 ]
 
-# Create the DataFrame.
-df = tif_to_dataframe_multiple(elevation_files, bathymetry_files, gravity_files)
+# Creating individual DataFrames first
+df_elev1 = tif_to_dataframe(elevation_files[0], 'Elevation1')
+df_elev2 = tif_to_dataframe(elevation_files[1], 'Elevation2')
+df_bathy1 = tif_to_dataframe(bathymetry_files[0], 'Bathymetry1')
+df_bathy2 = tif_to_dataframe(bathymetry_files[1], 'Bathymetry2')
+df_grav1 = tif_to_dataframe(gravity_files[0], 'Gravity1')
+df_grav2 = tif_to_dataframe(gravity_files[1], 'Gravity2')
 
-# Optionally, display or process the DataFrame.
-print(df.head())
+# Rounding coordinates
+dfs = [df_elev1, df_elev2, df_bathy1, df_bathy2, df_grav1, df_grav2]
+dfs = [round_coords(df) for df in dfs]
+
+# Merge both DataFrames
+df_merged = reduce(lambda left, right: pd.merge(left, right, on=['Latitude', 'Longitude'], how='outer'), dfs)
+
+# Fill missing values with 0 
+df_merged['Elevation1'] = df_merged['Elevation1'].fillna(0)
+df_merged['Bathymetry1'] = df_merged['Bathymetry1'].fillna(0)
+df_merged['Gravity1'] = df_merged['Gravity1'].fillna(0)
+
+# Optionally, sort the resulting DataFrame by latitude and longitude.
+df_merged.sort_values(by=['Latitude', 'Longitude'], inplace=True)
+
+# Display the head of the DataFrame.
+print(df_merged.head())
+
 
