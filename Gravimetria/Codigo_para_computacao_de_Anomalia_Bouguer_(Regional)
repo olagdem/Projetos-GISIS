@@ -2,93 +2,135 @@ import numpy as np
 import pandas as pd 
 import rasterio
 from pyproj import CRS, Transformer
-# Defining the Custom projection
 
+# Definindo a projeção customizada
 def geographic2projected(crs_input, geoCoords):
-    # Ensure input arrays are numpy arrays.
+    # Garante que os arrays de entrada são numpy arrays.
     lat = np.asarray(geoCoords[0])
     lon = np.asarray(geoCoords[1])
     
-    # Calculate the median longitude to center the projection.
+    # Calcula a longitude mediana para centralizar a projeção.
     median_lon = np.median(lon)
     
-    # Define a custom Transverse Mercator projection centered at the median longitude.
+    # Define uma projeção Transverse Mercator customizada centrada na longitude mediana.
     crs_custom = CRS.from_string(f"+proj=tmerc +lon_0={median_lon} +datum=WGS84")
     
-    # Create the input CRS object.
+    # Cria o objeto CRS de entrada.
     input_crs = CRS.from_user_input(crs_input)
     
-    # Create a transformer from the input CRS to the custom projection.
+    # Cria um transformador do CRS de entrada para a projeção customizada.
     transformer = Transformer.from_crs(input_crs, crs_custom, always_xy=True)
     
-    # Perform a vectorized transformation.
+    # Realiza a transformação vetorizada.
     x, y = transformer.transform(lon, lat)
     projCoords = np.array([x, y])
     
     return crs_custom, projCoords
 
-# Converting the TIFF files to Dataframe
-def tif_to_dataframe(elevation_tiff_path_1, elevation_tiff_path_2, gravity_tiff_path_1, gravity_tiff_path_2):
-    # Open the first elevation TIFF file
-    with rasterio.open(elevation_tiff_path_1) as src_elev1:
-        elevation_1 = src_elev1.read(1)
-        transform_elev1 = src_elev1.transform
-        height_1, width_1 = elevation_1.shape
+# Converting the TIFF files to DataFrame
+def tiff_to_dataframe(elevation_1_file, elevation_2_file, gravity_1_file, gravity_2_file):
+    # Open the Maciços's Elevation Files
+    with rasterio.open(elevation_1_file) as src_elev_1:
+        elev_arr1 = src_elev_1.read(1)
+        transform_elev1 = src_elev_1.transform
+        height_1, width_1 = elev_arr1.shape
 
-    # Open the second elevation TIFF file
-    with rasterio.open(elevation_tiff_path_2) as src_elev2:
-        elevation_2 = src_elev2.read(1)
-        transform_elev2 = src_elev2.transform
-        height_2, width_2 = elevation_2.shape
+    # Open tbe Recorte's Elevation File
+    with rasterio.open(elevation_2_file) as src_elev_2:
+        elev_arr2 = src_elev_2.read(1)
+        transform_elev2 = src_elev_2.transform
+        height_2, width_2 = elev_arr2.shape
 
-    # Open the first gravity TIFF file
-    with rasterio.open(gravity_tiff_path_1) as src_grav1:
-        gravity_1 = src_grav1.read(1)
+    # Open the Maciço's Gravity File
+    with rasterio.open(gravity_1_file) as src_grav1:
+        grav_arr1 = src_grav1.read(1)
         transform_grav1 = src_grav1.transform
-        height_g1, width_g1 = gravity_1.shape
+        height_g1, width_g1 = grav_arr1.shape
 
-    # Open the second gravity TIFF file
-    with rasterio.open(gravity_tiff_path_2) as src_grav2:
-        gravity_2 = src_grav2.read(1)
+    # Open the Recorte's Gravity File
+    with rasterio.open(gravity_2_file) as src_grav2:
+        grav_arr2 = src_grav2.read(1)
         transform_grav2 = src_grav2.transform
-        height_g2, width_g2 = gravity_2.shape
+        height_g2, width_g2 = grav_arr2.shape
 
-        latitude_1 = []
-        latitude_2 = []
-        longitude_1 = []
-        longitude_2 = []
-        elevation_1 = []
-        elevation_2 = []
-        gravity_1 = []
-        gravity_2 = []
+    latitude_1 = []
+    latitude_2 = []
+    longitude_1 = []
+    longitude_2 = []
+    elevation_1_list = [] 
+    elevation_2_list = []  
+    gravity_1_list = []
+    gravity_2_list = []
 
-        for row in range(height_1):
-            for col in range(width_1):
-                lon_1, lat_1 = transform_elev1 * (col,row)
-                latitude_1.append(lat_1)
-                longitude_1.append(lon_1)
-                elevation_1.append(elevation_1[row, col])
-                gravity_1.append(gravity_2[row, col])
+    # Loop fot the first chunk (Maciço)
+    for row in range(height_1):
+        for col in range(width_1):
+            lon_1, lat_1 = transform_elev1 * (col, row)
+            latitude_1.append(lat_1)
+            longitude_1.append(lon_1)
+            elevation_1_list.append(elev_arr1[row, col])
+            gravity_1_list.append(grav_arr1[row, col])
         
-        for row in range(height_2):
-            for col in range(width_2):
-                lon_2, lat_2 = transform_elev2 * (col,row)
-                latitude_2.append(lat_2)
-                longitude_2.append(lon_2)
-                elevation_2.append(elevation_2[row, col])
-                gravity_2.append(gravity_2[row, col])
-        
-        df = pd.DataFrame({
-            'Latitude_Maciço': latitude_1,
-            'Latitude_Recorte': latitude_2,
-            'Longitude_Maciço': longitude_1,
-            'Longitude_Recorte': longitude_2,
-            'Gravidade_Maciço': gravity_1,
-            'Gravidade_Recorte': gravity_2
-        })
+    # Loop for the second chunk Recorte)
+    for row in range(height_2):
+        for col in range(width_2):
+            lon_2, lat_2 = transform_elev2 * (col, row)
+            latitude_2.append(lat_2)
+            longitude_2.append(lon_2)
+            elevation_2_list.append(elev_arr2[row, col])
+            gravity_2_list.append(grav_arr2[row, col])
 
-        return df
+    # Assigning Maciço's DataFrame   
+    df_macico = pd.DataFrame({
+        'Latitude_Maciço': latitude_1,
+        'Longitude_Maciço': longitude_1,
+        'Elevation_Maciço': elevation_1_list,
+        'Gravity_Maciço': gravity_1_list
+    })
 
+    # Assigning Recorte's DataFrame
+    df_recorte = pd.DataFrame({
+        'Latitude_Recorte': latitude_2,
+        'Longitude_Recorte': longitude_2,
+        'Elevation_Recorte': elevation_2_list,
+        'Gravity_Recorte': gravity_2_list
+    })
+    
+    return df_macico, df_recorte
+
+# Defining Filepaths
+elevation_1_file = r'S:\Dados RESENDE\Arquivos Resende\Maciços Alcalinos (Bathymetry).tif'
+elevation_2_file = r'S:\Dados RESENDE\Arquivos Resende\Recorte Maciços (Bathymetry).tif'
+gravity_1_file = r'S:\Dados RESENDE\Arquivos Resende\Maciços Alcalinos (Free-Air).tif'
+gravity_2_file = r'S:\Dados RESENDE\Arquivos Resende\Recorte Maciços (Free-Air).tif'
+
+# Correct function call with four file paths
+df_macico, df_recorte = tiff_to_dataframe(elevation_1_file, elevation_2_file, gravity_1_file, gravity_2_file)
+
+# Applying the projection
+input_crs = 'EPSG:4326'
+
+# Applyig the projection for the Maciço chunk
+crs_custom_macico, proj_coords_macico = geographic2projected(
+    input_crs, 
+    [df_macico['Latitude_Maciço'].values, df_macico['Longitude_Maciço'].values]
+)
+# Adding the Easting/Northing coordinates to the DataFrame
+df_macico = df_macico.assign(Easting=proj_coords_macico[0], Northing=proj_coords_macico[1])
+
+# Applying the projection for the Recorte chunk
+crs_custom_recorte, proj_coords_recorte = geographic2projected(
+    input_crs, 
+    [df_recorte['Latitude_Recorte'].values, df_recorte['Longitude_Recorte'].values]
+)
+# Adding the Easting/Northing coordinates to the DataFrame
+df_recorte = df_recorte.assign(Easting=proj_coords_recorte[0], Northing=proj_coords_recorte[1])
+
+# Reading the Topography File 
+
+topography_1_file = r'S:\Dados RESENDE\Arquivos Resende\Maciços Alcalinos (Bathymetry).tif'
+topography_2_file = r'S:\Dados RESENDE\Arquivos Resende\Recorte Maciços (Free-Air).tif'
+with rasterio.open()
 
 
 
