@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd 
 import rasterio
 from pyproj import CRS, Transformer
+import xarray as xr
 
 # Definindo a projeção customizada
 def geographic2projected(crs_input, geoCoords):
@@ -127,11 +128,44 @@ crs_custom_recorte, proj_coords_recorte = geographic2projected(
 df_recorte = df_recorte.assign(Easting=proj_coords_recorte[0], Northing=proj_coords_recorte[1])
 
 # Reading the Topography File 
-
 topography_1_file = r'S:\Dados RESENDE\Arquivos Resende\Maciços Alcalinos (Bathymetry).tif'
-topography_2_file = r'S:\Dados RESENDE\Arquivos Resende\Recorte Maciços (Free-Air).tif'
-with rasterio.open()
+topography_2_file = r'S:\Dados RESENDE\Arquivos Resende\Recorte Maciços (Bathymetry).tif'
 
+with rasterio.open(topography_1_file) as src:
+    data_topo_1 = src.read(1)
+    lon_min, lat_min, lon_max, lat_max = src.bounds
+    lon_res = (lon_max - lon_min) / src.width
+    lat_res = (lat_max - lat_min) / src.height
+    lons_topo1 = np.linspace(lon_min + lon_res / 2, lon_max - lon_res /2, src.width)
+    lat_topo1 = np.linspace(lat_min + lat_res / 2, lat_max - lat_res /2, src.height)
 
+# Creating a Topography Dataset for the Macico's chunk
+ds_topo_1 = xr.Dataset(
+    {
+        'topography':(['latitude', 'longitude'], data_topo_1)
+    },
+    coords = {
+        'longitude': lons_topo1,
+        'latitude': lat_topo1
+    }
+)
 
+with rasterio.open(topography_2_file) as src:
+    data_topo_2 = src.read(1)
+    lon_min, lat_min, lon_max, lat_max = src.bounds
+    lon_res2 = (lon_max - lon_min) / src.width
+    lat_res2 = (lat_max - lat_min) / src.height
+    lons_topo2 = np.linspace(lon_min + lon_res2 / 2, lon_max - lon_res2 / 2, src.width)
+    lat_topo2 = np.linspace(lat_min + lat_res2 / 2, lat_max - lat_res2 / 2, src.height)
 
+# Creating a Datase fot the Recorte's chunk
+ds_topo_2 = xr.Dataset(
+
+    {
+        'topography':(['latitude', 'longitude'], data_topo_2)
+    },
+    coords ={
+        'longitude': lons_topo2,
+        'latitude': lat_topo2
+    }
+)
