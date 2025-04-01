@@ -2,7 +2,10 @@ import numpy as np
 import pandas as pd 
 import rasterio
 from pyproj import CRS, Transformer
+from pyproj.enums import TransformDirection
 import xarray as xr
+import verde as vd
+import harmonica as hm
 
 # Definindo a projeção customizada
 def geographic2projected(crs_input, geoCoords):
@@ -108,11 +111,9 @@ gravity_2_file = r'S:\Dados RESENDE\Arquivos Resende\Recorte Maciços (Free-Air)
 # Correct function call with four file paths
 df_macico, df_recorte = tiff_to_dataframe(elevation_1_file, elevation_2_file, gravity_1_file, gravity_2_file)
 
-# Applying the projection
-input_crs = 'EPSG:4326'
-
 # Applyig the projection for the Maciço chunk
-crs_custom_macico, proj_coords_macico = geographic2projected(
+input_crs = 'EPSG:4326'
+crs_custom_maciço, proj_coords_macico = geographic2projected(
     input_crs, 
     [df_macico['Latitude_Maciço'].values, df_macico['Longitude_Maciço'].values]
 )
@@ -142,7 +143,7 @@ with rasterio.open(topography_1_file) as src:
 # Creating a Topography Dataset for the Macico's chunk
 ds_topo_1 = xr.Dataset(
     {
-        'topography':(['latitude', 'longitude'], data_topo_1)
+        'bedrock_maciço':(['latitude', 'longitude'], data_topo_1)
     },
     coords = {
         'longitude': lons_topo1,
@@ -162,10 +163,83 @@ with rasterio.open(topography_2_file) as src:
 ds_topo_2 = xr.Dataset(
 
     {
-        'topography':(['latitude', 'longitude'], data_topo_2)
+        'bedrock_recorte':(['latitude', 'longitude'], data_topo_2)
     },
     coords ={
         'longitude': lons_topo2,
         'latitude': lat_topo2
     }
 )
+
+# Creating a DataArray for the Maciço's grid
+grid_maciço = xr.DataArray(
+    ds_topo_1.bedrock_maciço.values,
+    coords ={'latitude': lat_topo1, 'longitude': lons_topo1},
+    dims =['latitude', 'longitude']
+)
+
+# Creating a DataArray for the Recorte's grid
+grid_recorte = xr.DataArray(
+    ds_topo_2.bedrock_recorte.values,
+    coords = {'latitude': lat_topo2, 'longitude': lons_topo2},
+    dims = ['latitude', 'longitude']
+)
+
+# Project the topography to plain coordinate
+transformer = Transformer.from_crs("EPSG:4326", crs_custom_maciço, always_xy=True)
+
+# Defining a correct inverse projection
+def proj_func(lon, lat, inverse=False):
+    if inverse:
+        return transformer.transform(lon, lat, direction=TransformDirection.INVERSE)
+    else:
+        return transformer.transform (lon, lat)
+
+# Reproject the grid 
+topo_plain_maciço = vd.project_grid(grid_maciço, projection=proj_func)
+topo_plain_recorte = vd.project_grid(grid_recorte, projection= proj_func)
+
+# Modelling the topography using prisms
+prism_center_maciço = (topo_plain_maciço.easting, topo_plain_maciço.northing)
+surface = topo_plain_maciço.values
+# Define the density for maciço
+density_maciço = np.where(topo_plain_maciço >= 0, 2570, 1040 - 2670)
+topo_prisms_maciço = hm.prism_layer(
+    prism_center_maciço,
+    surface = surface,
+    reference = 0,
+    properties ={'density': density_maciço}
+)
+
+prism_center_recorte =(topo_plain_recorte.easting, topo_plain_recorte.northing)
+
+surface = topo_plain_recorte.values
+# Define the density for Recorte
+density_recorte = np.where(topo_plain_recorte >= 0, 2570, 1040 - 2570)
+topo_prism_recorte = hm.prism_layer(
+    prism_center_recorte,
+    surface=surface,
+    reference=0,
+    properties={'density': density_recorte}
+)
+
+# Compute the gravity effect of the Maciço's chunk
+coordinates_maciço = (df_macico['Easting'].values, df_macico['Northing'].values, df_macico['Elevation_Maciço'].values)
+result_maciço = topo_prisms_maciço.prism_layer.gravity(coordinates_maciço, field="g_z")
+
+# Computie the gravity effect of the Recorte's chunk
+coordinates_recorte = (df_recorte['Easting'].values, df_recorte['Northing'].values, df_recorte['Elevation_Recorte'].values)
+result_recorte = topo_prism_recorte.prism_layer.gravity(coordinates_recorte, field="g_z")
+
+# Compute the Bouguer Disturbance for the Maciço's chunk
+Maciços_Bouguer = df_macico['Gravity_Maciço'].values - result_maciço
+
+# Compute the Bouguer Disturbance for the Recorte's chunk
+Recorte_Bouguer = df_recorte['Gravity_Recorte'].values - result_recorte
+
+# Add the Bouguer Values to each 
+df_macico['Bouguer'] = Maciços_Bouguer
+df_recorte['Bouguer'] = Recorte_Bouguer
+
+print("Hello World")
+
