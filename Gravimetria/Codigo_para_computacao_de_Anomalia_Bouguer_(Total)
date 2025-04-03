@@ -13,9 +13,7 @@ import verde as vd
 import harmonica as hm
 import boule as bl
 
-# ------------------------------------------------------------------------------
-# Define a custom projection function.
-# ------------------------------------------------------------------------------
+# Defining the custom projection
 def geographic2projected(crs_input, geoCoords):
     # Ensure input arrays are numpy arrays.
     lat = np.asarray(geoCoords[0])
@@ -39,9 +37,7 @@ def geographic2projected(crs_input, geoCoords):
     
     return crs_custom, projCoords
 
-# ------------------------------------------------------------------------------
-# Function to convert the TIFF files to a DataFrame
-# ------------------------------------------------------------------------------
+# Converting the TIFF files to DataFrame
 def tif_to_dataframe(elevation_tif_path, gravity_tif_path):
     with rasterio.open(elevation_tif_path) as src_elevation:
         elevation = src_elevation.read(1)
@@ -51,11 +47,6 @@ def tif_to_dataframe(elevation_tif_path, gravity_tif_path):
         with rasterio.open(gravity_tif_path) as src_gravity:
             gravity = src_gravity.read(1)
             transform_gravity = src_gravity.transform
-
-            if not np.allclose(transform_elevation, transform_gravity, rtol=1e-5):
-                raise ValueError("The elevation and gravity files have different spatial transformations.")
-            if elevation.shape != gravity.shape:
-                raise ValueError("The elevation and gravity files have different dimensions.")
             
             latitudes = []
             longitudes = []
@@ -80,48 +71,18 @@ def tif_to_dataframe(elevation_tif_path, gravity_tif_path):
 
             return df
 
-# ------------------------------------------------------------------------------
-# Paths to the TIFF files (use raw strings to avoid escape issues)
-# ------------------------------------------------------------------------------
+# Defining Filepaths
 elevation_tif_path = r'F:\Pasta Miquelutti\Total Bathymetry pixel reduced (WGS84).tif'
 gravity_tif_path   = r'F:\Pasta Miquelutti\Total Free-air pixel reduced (WGS84).tif'
-
-# ------------------------------------------------------------------------------
-# Load data and project coordinates
-# ------------------------------------------------------------------------------
 df = tif_to_dataframe(elevation_tif_path, gravity_tif_path)
 
-# Plot the original geographic (lon-lat) gravity data.
-plt.figure()
-sc = plt.scatter(df['Longitude'].values, df['Latitude'].values, c=df['Gravity'].values, s=1)
-plt.gca().set_aspect("equal")
-plt.colorbar(sc, label="mGal")
-plt.xlabel('Longitude')
-plt.ylabel('Latitude')
-plt.title('Gravity Data Plot (Geographic)')
-plt.show()
-
-# ------------------------------------------------------------------------------
-# Use the custom projection to convert geographic coordinates to plain coordinates.
-# ------------------------------------------------------------------------------
+# Applying the projection 
 input_crs = "EPSG:4326"
 crs_custom, proj_coords = geographic2projected(input_crs, [df['Latitude'].values, df['Longitude'].values])
-# Add the projected coordinates (Easting, Northing) to the DataFrame.
+# Adding the Easting/Northing coordinates to the DataFrame.
 df = df.assign(Easting=proj_coords[0], Northing=proj_coords[1])
 
-# Plot the gravity data in the custom projected (plain) coordinates.
-plt.figure()
-sc_proj = plt.scatter(df['Easting'].values, df['Northing'].values, c=df['Gravity'].values, s=1)
-plt.gca().set_aspect("equal")
-plt.colorbar(sc_proj, label="mGal")
-plt.xlabel('Easting')
-plt.ylabel('Northing')
-plt.title('Gravity Data Plot (Projected)')
-plt.show()
-
-# ------------------------------------------------------------------------------
-# Read and prepare the topography (bathymetry) data.
-# ------------------------------------------------------------------------------
+# Reading the Topography file
 tif_path = r"F:\Pasta Miquelutti\Total Bathymetry pixel reduced (WGS84).tif"
 with rasterio.open(tif_path) as src:
     data = src.read(1)
@@ -131,7 +92,7 @@ with rasterio.open(tif_path) as src:
     lons = np.linspace(lon_min + lon_res / 2, lon_max - lon_res / 2, src.width)
     lats = np.linspace(lat_min + lat_res / 2, lat_max - lat_res / 2, src.height)
 
-# Create an xarray Dataset for the topography.
+# Creating a Topography Dataset
 dataset = xr.Dataset(
     {
         'bedrock': (['latitude', 'longitude'], data)
@@ -142,71 +103,48 @@ dataset = xr.Dataset(
     }
 )
 
-# Create a DataArray for the grid (in geographic coordinates).
+# Creating a DataArray for the grid
 grid = xr.DataArray(
     dataset.bedrock.values,
     coords={'latitude': lats, 'longitude': lons},
     dims=['latitude', 'longitude']
 )
 
-# ------------------------------------------------------------------------------
-# Project the topography to plain coordinates using the same custom projection.
-# ------------------------------------------------------------------------------
+# Projecting the topography to plain coordinates
 transformer = Transformer.from_crs("EPSG:4326", crs_custom, always_xy=True)
 
-# Define a projection function that accepts an 'inverse' keyword.
+# Defining a correct invese projection
 def proj_func(lon, lat, inverse=False):
     if inverse:
         return transformer.transform(lon, lat, direction=TransformDirection.INVERSE)
     else:
         return transformer.transform(lon, lat)
 
-# Use Verde's project_grid to reproject the grid.
+# Reprojecting the grid
 topo_plain = vd.project_grid(grid, projection=proj_func)
 
-# Plot the projected topography.
-plt.figure()
-topo_plain.plot()
-plt.gca().invert_yaxis()
-plt.gca().set_aspect("equal")
-point1 = (-47, -25.6)
-point2 = (-44, -25.6)
-easting1, northing1 = transformer.transform(point1[0], point1[1])
-easting2, northing2 = transformer.transform(point2[0], point2[1])
-plt.plot([easting1, easting2], [northing1, northing2], "ro-") 
-plt.title("Topography with Custom Projection")
-plt.show()
-
-# ------------------------------------------------------------------------------
-# Modeling topography with prisms
-# ------------------------------------------------------------------------------
+# Modelling the topography using prisms
 prisms_center = (topo_plain.easting, topo_plain.northing)
 surface = topo_plain.values
-# Define a density contrast array (adjust as appropriate).
+# Defineing the density *
 density = np.where(topo_plain >= 0, 2670, 1040 - 2670)
-    
 topo_prisms = hm.prism_layer(
     prisms_center,
     surface=surface,
     reference=0,
     properties={"density": density}
 )
-print(topo_prisms)
 
-# ------------------------------------------------------------------------------
-# Compute the gravitational effect of the prism layer.
-# ------------------------------------------------------------------------------
+# Computing the gravity effect of the prisms
 coordinates = (df['Easting'].values, df['Northing'].values, df['Elevation'].values)
 result = topo_prisms.prism_layer.gravity(coordinates, field="g_z")
 
-# Compute the Bouguer disturbance.
+# Computing the Bouguer disturbance
 bouguer_disturbance = df['Gravity'].values - result
-# Add the Bouguer anomaly to the DataFrame.
+# Adding the Bouguer values to the DataFrame
 df['Bouguer'] = bouguer_disturbance
 
-# ------------------------------------------------------------------------------
-# Estimate parameters using Equivalent Sources and interpolate the Bouguer data.
-# ------------------------------------------------------------------------------
+# Setting up the Hyperparameters to adjust the Bouguer values
 point1_profile = (-45, -22.34)
 point2_profile= (-44.5, -22.34)
 
@@ -257,7 +195,7 @@ eqs_best = hm.EquivalentSources(**parameter_sets[best]).fit(
     coordinates, df['Bouguer'].values
 )
 
-# Define grid coordinates
+# Defining grid coordinates
 region = vd.get_region(coordinates)
 grid_coords = vd.grid_coordinates(
     region=region,
@@ -272,7 +210,7 @@ plt.gca().invert_yaxis()
 plt.gca().set_aspect("equal")
 plt.show()
 
-# Interpolate the Bouguer data along a profile.
+# Interpolating the Bouguer data along a profile.
 point1 = (-45, -22.34)
 point2 = (-44.5, -22.34)
 
@@ -286,35 +224,24 @@ profile = eqs_best.profile(
     projection=proj_func, 
 )
 
-# Plot the Bouguer profile.
-plt.figure()
-plt.plot(profile.distance, profile.Bouguer)
-plt.ylabel("mGal")
-plt.xlabel("Distance [m]")
-plt.title("Residuals of Bouguer Disturbance")
-plt.gcf().set_size_inches(10, 3)
-plt.show()
-# ------------------------------------------------------------------------------
-# Write output to TIFF and NetCDF using your custom CRS
-# ------------------------------------------------------------------------------
+# Exporting the results to NetCDF and TIFF files
 output_file_prefix = "bouguer_anomaly_v09"
 spacing = 100
 grid_bouguer = grid_bouguer.drop_vars(["upward"], errors='ignore').rename({'easting': 'x', 'northing': 'y'})
 grid_bouguer.rio.write_crs(crs_custom, inplace=True)
 
-# Write each data variable (e.g., 'Bouguer') to a separate TIFF file.
+# Writing each data variable to a separate TIFF file.
 for var in grid_bouguer.data_vars:
-    # Extract the DataArray
+    # Extracting the DataArray
     da = grid_bouguer[var]
-    # Convert to a Dataset so that to_raster becomes available
+    # Converting to a Dataset so that to_raster becomes available
     da_ds = da.to_dataset(name=var)
     da_ds.rio.write_crs(crs_custom, inplace=True)
     da_ds.rio.to_raster(f"{output_file_prefix}_{var}_spacing{spacing}.tif")
 
-# Write the grid to a NetCDF file.
+# Writing the grid to a NetCDF file.
 grid_bouguer = grid_bouguer.reindex(latitude=list(reversed(grid_bouguer.y)))
 grid_bouguer.rio.set_spatial_dims(x_dim="x", y_dim="y", inplace=True)
 grid_bouguer.rio.write_coordinate_system(inplace=True).to_netcdf(
     f"{output_file_prefix}_spacing{spacing}.nc"
 )
-
