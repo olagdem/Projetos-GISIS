@@ -1,11 +1,11 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-# Define the Butterworth wavelet function 
+# Defining the Butterworth wavelet function 
 def wavelet_butterworth(t, f1, f2, N1=3, N2=4):
     dt = t[1] - t[0]
     nt = len(t)
-    # Define frequency axis for FFT (Hz)
+    # Frequency axis fot the Fast Fourirer Transform
     freq = np.fft.fftfreq(nt, d=dt)
     freq_shifted = np.fft.fftshift(freq)
     # Avoid division by zero!!!
@@ -15,19 +15,19 @@ def wavelet_butterworth(t, f1, f2, N1=3, N2=4):
     H_lp = 1.0 / np.sqrt(1 + (abs_freq / f2)**(2 * N2))
     H_shifted = H_hp * H_lp
     H = np.fft.ifftshift(H_shifted)
-    # Inverse FFT
+    # Inverse Fast Fourier Transforme
     h = np.fft.ifft(H)
     h = np.real(h) # Set only the real parts
     h = np.fft.fftshift(h)
     h = h / np.max(np.abs(h))
     return h, H_shifted, freq_shifted
 
-# Define parameters 
-dt = 0.0001       # Sampling interval in seconds
-nt = 5001         # Number of samples
-T_total = nt * dt # Total record length in seconds
-t = np.linspace(0, T_total, nt, endpoint=False)  # Time vector for seismogram
-t_centered = t - (T_total / 2)  # Center time vector about zero
+# Defining parameters 
+dt = 0.0001                                        # Samples interval 
+nt = 5001                                          # Number of samples
+T_total = nt * dt                                  # Total record length in seconds
+t = np.linspace(0, T_total, nt, endpoint=False)    # Time vector for seismogram
+t_centered = t - (T_total / 2)                     # Center time vector about zero
 
 # Butterworth filter parameters
 f1 = 10   
@@ -35,9 +35,10 @@ f2 = 40
 N1 = 3     
 N2 = 4   
 
-# Generate the Butterworth wavelet
+# Generating the Butterworth wavelet
 w, H_amp, freq = wavelet_butterworth(t_centered, f1, f2, N1, N2)
 
+# Plotting the Butterworth wavelet
 plt.figure()
 plt.plot(t_centered, w, '--.')
 plt.title(f"Butterworth Wavelet (f1 = {f1} Hz, f2 = {f2} Hz, N1 = {N1}, N2 = {N2})")
@@ -46,12 +47,13 @@ plt.ylabel("Normalized Amplitude")
 plt.grid(True)
 plt.show()
 
-# Velocity Model
+# Defining the velocity model
 vel = np.zeros(nt)
 vel[0:nt//3] = 1500     
 vel[nt//3:2*nt//3] = 2500  
 vel[2*nt//3:] = 2000     
 
+# Plotting the velocity model
 plt.figure()
 plt.plot(t, vel, '--')
 plt.title("Velocity Model")
@@ -61,12 +63,13 @@ plt.gca().invert_yaxis()
 plt.grid(True)
 plt.show()
 
-# Density Model
+# Defining the density model
 dens = np.zeros(nt)
 dens[0:nt//3] = 2000      
 dens[nt//3:2*nt//3] = 2400 
-dens[2*nt//3:] = 2200     
+dens[2*nt//3:] = 2200   
 
+# Plotting the density
 plt.figure()
 plt.plot(t, dens, '--')
 plt.title("Density Model")
@@ -76,9 +79,10 @@ plt.gca().invert_yaxis()
 plt.grid(True)
 plt.show()
 
-# Impedance Model
+# Defining the impedance model
 impedance = vel * dens
 
+# Plotting the impedance model
 plt.figure()
 plt.plot(t, impedance, '--')
 plt.title("Acoustic Impedance")
@@ -88,11 +92,11 @@ plt.gca().invert_yaxis()
 plt.grid(True)
 plt.show()
 
-# Reflectivity Model
-# Reflectivity: R = (Z2 - Z1) / (Z2 + Z1)
+# Defining reflectivity R = (Z2 - Z1) / (Z2 + Z1)
 reflectivity = np.zeros(nt)
 reflectivity[1:] = (impedance[1:] - impedance[:-1]) / (impedance[1:] + impedance[:-1])
 
+# Plotting the reflectivity model
 plt.figure()
 plt.plot(reflectivity, t, '--')
 plt.title("Reflectivity from Impedance")
@@ -102,9 +106,10 @@ plt.gca().invert_yaxis()
 plt.grid(True)
 plt.show()
 
-# Convolution
+# Defining the convolution
 synthetic_trace = np.convolve(reflectivity, w, mode="same")
 
+# Plotting the convolution
 plt.figure()
 plt.plot(synthetic_trace, t, '--')
 plt.title("Synthetic Seismogram (Convolution)")
@@ -114,12 +119,13 @@ plt.gca().invert_yaxis()
 plt.grid(True)
 plt.show()
 
-# Amplitude Spectrum
+# Defining the amplitude spectrum
 W = np.fft.fft(w)
 W_shifted = np.fft.fftshift(W)
 freq_w = np.fft.fftfreq(nt, d=dt)
 freq_w_shifted = np.fft.fftshift(freq_w)
 
+# Plotting the amplitude spectrum 
 plt.figure()
 plt.plot(freq_w_shifted, np.abs(W_shifted), '--.')
 plt.title("Amplitude Spectrum of the Butterworth Wavelet")
