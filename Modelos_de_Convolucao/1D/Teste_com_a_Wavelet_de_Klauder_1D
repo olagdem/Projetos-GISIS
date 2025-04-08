@@ -1,10 +1,11 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+# Defining the Klauder wavelet function
 def wavelet_klauder(t, f1, f2, T_sweep):
 
     dt = t[1] - t[0]
-    n_sweep = int(T_sweep / dt)     # Number of samples for the sweep
+    n_sweep = int(T_sweep / dt)                    # Number of samples for the sweep
     t_sweep = np.linspace(0, T_sweep, n_sweep, endpoint=False)
     sweep = np.sin(2 * np.pi * (f1 * t_sweep + 0.5 * (f2 - f1) / T_sweep * t_sweep**2))   # Sweep from f2 - f1
     # Compute the autocorrelation of the sweep 
@@ -15,22 +16,22 @@ def wavelet_klauder(t, f1, f2, T_sweep):
     
     return wavelet
 
-# Define parameters for the synthetic seismogram
-dt = 0.0001       # sampling interval in seconds
-nt = 5001         # number of samples
-T_total = nt * dt # total record length in seconds
-t = np.linspace(0, T_total, nt, endpoint=False)  # time vector for seismogram
-t_shifted = t - (T_total / 2)  # center time vector about zero
+# Defining parameters 
+dt = 0.0001                                       # Sample interval
+nt = 5001                                         # Number of samples
+T_total = nt * dt                                 # Total record length in seconds
+t = np.linspace(0, T_total, nt, endpoint=False)   # Time vector for seismogram
+t_shifted = t - (T_total / 2)                     # Center time vector about zero
 
-# Parameters for the Klauder wavelet (choose as in Ryan, 1994)
-f1 = 10      # terminal low frequency (Hz)
-f2 = 40      # terminal high frequency (Hz)
-T_sweep = 7  # sweep duration in seconds
+# Klauder filter parameters
+f1 = 10                                           # Terminal low frequency 
+f2 = 40                                           # Terminal high frequency 
+T_sweep = 7                                       # Sweep duration in seconds
 
-# Generate the Klauder wavelet
+# Generating the Klauder wavelet
 w = wavelet_klauder(t_shifted, f1, f2, T_sweep)
 
-# Wavelet Plot (Time-domain filter)
+# Plot the Klauder Wavelet
 plt.figure()
 plt.plot(t_shifted, w, '--.')
 plt.title(f"Klauder Wavelet (f1 = {f1} Hz, f2 = {f2} Hz, T_sweep = {T_sweep*1000:.0f} ms)")
@@ -38,12 +39,13 @@ plt.xlabel("Time (s)")
 plt.ylabel("Amplitude")
 plt.show()
 
-# Velocity model 
+# Defining the velocity model 
 vel = np.zeros(nt)
 vel[0:nt//3] = 1500
 vel[nt//3:2*nt//3] = 2500
 vel[2*nt//3:] = 2000
 
+# Plotting the velocity model
 plt.figure()
 plt.plot(t, vel, '--')
 plt.title("Velocity Model")
@@ -52,12 +54,13 @@ plt.ylabel("Velocity (m/s)")
 plt.gca().invert_yaxis()
 plt.show()
 
-# Density model
+# Defining the density model
 dens = np.zeros(nt)
 dens[0:nt//3] = 2000 
 dens[nt//3:2*nt//3] = 2400 
 dens[2*nt//3:] = 2200
 
+# Plotting the density model
 plt.figure()
 plt.plot(t, dens, '--')
 plt.title("Density Model")
@@ -66,9 +69,10 @@ plt.ylabel("Density (kg/m³)")
 plt.gca().invert_yaxis()
 plt.show()
 
-# Acoustic impedance calculation
+# Defining the impedance
 impedance = vel * dens
 
+# Plotting the impedance model
 plt.figure()
 plt.plot(t, impedance, '--')
 plt.title("Impedance of the Medium")
@@ -77,10 +81,11 @@ plt.ylabel("Impedance (kg/m²·s)")
 plt.gca().invert_yaxis()
 plt.show()
   
-# Reflectivity calculation: R = (Z2 - Z1) / (Z2 + Z1)
+# Defining reflectivity: R = (Z2 - Z1) / (Z2 + Z1)
 reflectivity_imp = np.zeros(nt)
 reflectivity_imp[1:] = (impedance[1:] - impedance[:-1]) / (impedance[1:] + impedance[:-1])
 
+# Plotting the reflectivity model
 plt.figure()
 plt.plot(reflectivity_imp, t, '--')
 plt.title("Reflectivity Calculated from Impedance")
@@ -89,9 +94,10 @@ plt.ylabel("Time (s)")
 plt.gca().invert_yaxis()
 plt.show()
 
-# Convolution to produce the synthetic seismogram
+# Defining the convolution 
 synthetic_trace = np.convolve(reflectivity_imp, w, mode="same")
 
+# Plotting the convolution model
 plt.figure()
 plt.plot(synthetic_trace, t, '--')
 plt.title("Synthetic Seismogram")
@@ -100,12 +106,13 @@ plt.ylabel("Time (s)")
 plt.gca().invert_yaxis()
 plt.show()
 
-# Amplitude Spectrum of the Klauder Filter
+# Defining the amplitude spectrum
 W = np.fft.fft(w)
 W_shifted = np.fft.fftshift(W)
 freq = np.fft.fftfreq(nt, d=dt)
 freq_shifted = np.fft.fftshift(freq)
 
+# Plotting the amplitude spectrum
 plt.figure()
 plt.plot(freq_shifted, np.abs(W_shifted))
 plt.title("Amplitude Spectrum of the Klauder Filter")
@@ -114,3 +121,4 @@ plt.ylabel("Amplitude")
 plt.xlim(0, 100) 
 plt.grid(True)
 plt.show()
+
