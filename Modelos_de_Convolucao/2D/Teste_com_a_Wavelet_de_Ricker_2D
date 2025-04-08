@@ -7,7 +7,7 @@ def wavelet_ricker(t, f):
     return (1 - 2 * aux) * np.exp(-aux)
 
 # Parâmetros
-dt = 0.0001         # intervalo de amostragem (s)
+dt = 0.001         # intervalo de amostragem (s)
 nt = 1001           # número de amostras temporais
 nx = 50             # número de amostras espaciais (número de traços)
 t = np.linspace(0, nt*dt, nt, endpoint=False)  # vetor tempo
@@ -15,7 +15,7 @@ x = np.linspace(0, nx-1, nx)                    # vetor espaço (posição dos t
 
 # Gerando a wavelet de Ricker (1D) com deslocamento temporal
 f = 25
-w = wavelet_ricker(t - 0.05, f)
+w = wavelet_ricker(t - 0.5, f)
 
 # Modelo 2D de Velocidade: camadas verticais replicadas para cada traço
 vel = np.zeros((nt, nx))
