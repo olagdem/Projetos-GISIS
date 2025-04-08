@@ -69,7 +69,7 @@ dens[0:nt//3] = 2000
 dens[nt//3:2*nt//3] = 2400 
 dens[2*nt//3:] = 2200   
 
-# Plotting the density
+# Plotting the density model
 plt.figure()
 plt.plot(t, dens, '--')
 plt.title("Density Model")
@@ -79,7 +79,7 @@ plt.gca().invert_yaxis()
 plt.grid(True)
 plt.show()
 
-# Defining the impedance model
+# Defining the impedance 
 impedance = vel * dens
 
 # Plotting the impedance model
@@ -109,7 +109,7 @@ plt.show()
 # Defining the convolution
 synthetic_trace = np.convolve(reflectivity, w, mode="same")
 
-# Plotting the convolution
+# Plotting the convolution model
 plt.figure()
 plt.plot(synthetic_trace, t, '--')
 plt.title("Synthetic Seismogram (Convolution)")
