@@ -1,16 +1,19 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+# Defining the Ricker wavelet function
 def wavelet_ricker(t, f):
     aux = (np.pi * f * t)**2
     ricker = (1 - 2 * aux) * np.exp(-aux)
     return ricker
 
 # Defining parameters
-dt = 0.0001       # sampling interval (seconds)
-nt = 1001         # number of time samples
-t = np.linspace(0, nt*dt, nt, endpoint=False)  # time vector
-w = wavelet_ricker(t - 0.05, 25)  # generate Ricker wavelet with a 25 Hz peak
+dt = 0.0001                                     # Sample interval
+nt = 1001                                       # Number of samples
+t = np.linspace(0, nt*dt, nt, endpoint=False)   # Time vector for seismogram
+
+# Generating the Ricker wavelet
+w = wavelet_ricker(t - 0.05, 25)               
 
 # Wavelet Plot 
 plt.figure()
@@ -20,13 +23,13 @@ plt.xlabel("Tempo (s)")
 plt.ylabel("Amplitude")
 plt.show()
 
-# Defining the constant states of velocity
+# Defining the velocity model
 vel = np.zeros(nt)
 vel[0:nt//3] = 1500
 vel[nt//3:2*nt//3] = 2500
 vel[2*nt//3:] = 2000
 
-# Velocity plot
+# Plotting the velocity model
 plt.figure()
 plt.plot(t, vel, '--')
 plt.title("Modelo de Velocidade")
@@ -35,13 +38,13 @@ plt.ylabel("Velocidade (m/s)")
 plt.gca().invert_yaxis()
 plt.show()
 
-# Defining the constant states of density
+# Defining the density model
 dens = np.zeros(nt)
 dens[0:nt//3] = 2000 
 dens[nt//3:2*nt//3] = 2400 
 dens[2*nt//3:] = 2200
 
-# Density plot
+# Plotting the density
 plt.figure()
 plt.plot(t, dens, '--')
 plt.title("Modelo de Densidade")
@@ -50,10 +53,10 @@ plt.ylabel("Densidade (kg/m³)")
 plt.gca().invert_yaxis()
 plt.show()
 
-# Calculating the acoustic impedance 
+# Defining the impedance model
 impedance = vel * dens
 
-# Impedance Plot
+# Plotting the impedance model
 plt.figure()
 plt.plot(t, impedance, '--')
 plt.title("Impedância do Meio")
@@ -62,12 +65,11 @@ plt.ylabel("Impedância (kg/m²·s)")
 plt.gca().invert_yaxis()
 plt.show()
 
-# Defining and processing reflectivity 
-# R = (Z2 - Z1) / (Z2 + Z1)
+# Defining reflectivity R = (Z2 - Z1) / (Z2 + Z1)
 reflectivity_imp = np.zeros(nt)
 reflectivity_imp[1:] = (impedance[1:] - impedance[:-1]) / (impedance[1:] + impedance[:-1])
 
-# Reflectivity Plot
+# Plotting the reflectivity model
 plt.figure()
 plt.plot(reflectivity_imp, t, '--')
 plt.title("Refletividade Calculada a partir da Impedância")
@@ -76,10 +78,10 @@ plt.ylabel("Coeficiente de Reflexão")
 plt.gca().invert_yaxis()
 plt.show()
 
-# Convolution to produce the synthetic seismogram
+# Defining the convolution
 synthetic_trace = np.convolve(reflectivity_imp, w, mode="same")
 
-# Synthetic Seismogram Plot
+# Plotting the convolution
 plt.figure()
 plt.plot(synthetic_trace, t, '--')
 plt.title("Sismograma Sintético")
@@ -88,13 +90,13 @@ plt.ylabel("Amplitude")
 plt.gca().invert_yaxis()
 plt.show()
 
-
-# Amplitude Spectrum 
+# Defining the amplitude spectrum
 W = np.fft.fft(w)
 W_shifted = np.fft.fftshift(W)
 freq = np.fft.fftfreq(nt, dt)
 freq_shifted = np.fft.fftshift(freq)
 
+# Plotting the amplitude spectrum 
 plt.figure()
 plt.plot(freq_shifted, np.abs(W_shifted), 'r', lw=2)
 plt.title("Espectro de Amplitude da Wavelet de Ricker")
@@ -103,4 +105,5 @@ plt.ylabel("Amplitude")
 plt.xlim(0, 100) 
 plt.grid(True)
 plt.show()
+
 
