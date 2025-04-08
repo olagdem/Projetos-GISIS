@@ -1,10 +1,10 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+# Defining the Ormsby wavelet function
 def wavelet_ormsby(t, f1, f2, f3, f4):
     dt = t[1] - t[0]
     n = len(t)
-    
     # Frequency vector 
     f = np.fft.fftfreq(n, dt)
     abs_f = np.abs(f)
@@ -13,32 +13,29 @@ def wavelet_ormsby(t, f1, f2, f3, f4):
     # Ramp up: F1 - F2
     ramp_up = (abs_f >= f1) & (abs_f < f2)
     filter_ormsby[ramp_up] = (abs_f[ramp_up] - f1) / (f2 - f1)
-    
     # Flat top: Amplitude = 1 between F2 and F3
     flat = (abs_f >= f2) & (abs_f <= f3)
     filter_ormsby[flat] = 1.0
-    
     # Ramp down: F3 - F4
     ramp_down = (abs_f > f3) & (abs_f <= f4)
     filter_ormsby[ramp_down] = (f4 - abs_f[ramp_down]) / (f4 - f3)
-    
     # Computing the Inverse Fourier Transform
     wavelet = np.fft.ifft(filter_ormsby).real
     wavelet = np.fft.fftshift(wavelet)
     return wavelet
 
-# Defining parameters for the synthetic seismogram
-dt = 0.0001       # sampling interval in seconds
-nt = 1001         # number of samples
-T = nt * dt       # total record length in seconds
-t = np.linspace(0, T, nt, endpoint=False)  # time vector for seismogram
-t_shifted = t - (T / 2)
+# Defining parameters 
+dt = 0.0001                                 # Sample interval
+nt = 1001                                   # Number of samples
+T = nt * dt                                 # Total record length in seconds
+t = np.linspace(0, T, nt, endpoint=False)   # Time vector for seismogram
+t_shifted = t - (T / 2)                     # Time shift
 
-# Frequencies for the Ormsby wavelet
+# Generating the Ormsby wavelet
 f1, f2, f3, f4 = 5, 10, 40, 45  
 w = wavelet_ormsby(t_shifted, f1, f2, f3, f4)  # Generate centered Ormsby wavelet
 
-# Wavelet Plot (Time-domain filter)
+# Plotting the Ormsby wavelet
 plt.figure()
 plt.plot(t_shifted, w, '--.')
 plt.title(f"Ormsby Wavelet (f1 = {f1} Hz, f2 = {f2} Hz, f3 = {f3} Hz, f4 = {f4} Hz)")
@@ -46,12 +43,13 @@ plt.xlabel("Time (s)")
 plt.ylabel("Amplitude")
 plt.show()
 
-# Velocity model 
+# Defining the velocity model
 vel = np.zeros(nt)
 vel[0:nt//3] = 1500
 vel[nt//3:2*nt//3] = 2500
 vel[2*nt//3:] = 2000
 
+# Plotting the velocity model
 plt.figure()
 plt.plot(t, vel, '--')
 plt.title("Velocity Model")
@@ -60,12 +58,13 @@ plt.ylabel("Velocity (m/s)")
 plt.gca().invert_yaxis()
 plt.show()
 
-# Density model
+# Defining the density model
 dens = np.zeros(nt)
 dens[0:nt//3] = 2000 
 dens[nt//3:2*nt//3] = 2400 
 dens[2*nt//3:] = 2200
 
+# Plotting the density
 plt.figure()
 plt.plot(t, dens, '--')
 plt.title("Density Model")
@@ -74,9 +73,10 @@ plt.ylabel("Density (kg/m³)")
 plt.gca().invert_yaxis()
 plt.show()
 
-# Acoustic impedance calculation
+# Defining the impedance model
 impedance = vel * dens
 
+# Plotting the impedance model
 plt.figure()
 plt.plot(t, impedance, '--')
 plt.title("Impedance of the Medium")
@@ -85,10 +85,11 @@ plt.ylabel("Impedance (kg/m²·s)")
 plt.gca().invert_yaxis()
 plt.show()
   
-# Reflectivity calculation: R = (Z2 - Z1) / (Z2 + Z1)
+# Defining reflectivity R = (Z2 - Z1) / (Z2 + Z1)
 reflectivity_imp = np.zeros(nt)
 reflectivity_imp[1:] = (impedance[1:] - impedance[:-1]) / (impedance[1:] + impedance[:-1])
 
+# Plotting the reflectivity model
 plt.figure()
 plt.plot(reflectivity_imp, t, '--')
 plt.title("Reflectivity Calculated from Impedance")
@@ -97,9 +98,10 @@ plt.ylabel("Time (s)")
 plt.gca().invert_yaxis()
 plt.show()
 
-# Convolution to produce the synthetic seismogram
+# Defining the convolution
 synthetic_trace = np.convolve(reflectivity_imp, w, mode="same")
 
+# Plotting the convolution
 plt.figure()
 plt.plot(synthetic_trace, t, '--')
 plt.title("Synthetic Seismogram")
@@ -108,12 +110,13 @@ plt.ylabel("Time (s)")
 plt.gca().invert_yaxis()
 plt.show()
 
-# Amplitude Spectrum 
+# Defining the amplitude spectrum
 W = np.fft.fft(w)
 W_shifted = np.fft.fftshift(W)
 freq = np.fft.fftfreq(nt, d=dt)
 freq_shifted = np.fft.fftshift(freq)
 
+# Plotting the amplitude spectrum 
 plt.figure()
 plt.plot(freq_shifted, np.abs(W_shifted), 'r', lw=2)
 plt.title("Amplitude Spectrum of the Ormsby Wavelet")
@@ -122,3 +125,4 @@ plt.ylabel("Amplitude")
 plt.xlim(0, 100)  
 plt.grid(True)
 plt.show()
+
