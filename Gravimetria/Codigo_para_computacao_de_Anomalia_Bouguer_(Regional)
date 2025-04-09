@@ -6,26 +6,27 @@ from pyproj.enums import TransformDirection
 import xarray as xr
 import verde as vd
 import harmonica as hm
+import itertools
 
-# Definindo a projeção customizada
+# Defining the custom projection
 def geographic2projected(crs_input, geoCoords):
-    # Garante que os arrays de entrada são numpy arrays.
+    # Ensure input arrays are numpy arrays.
     lat = np.asarray(geoCoords[0])
     lon = np.asarray(geoCoords[1])
     
-    # Calcula a longitude mediana para centralizar a projeção.
+    # Calculate the median longitude to center the projection.
     median_lon = np.median(lon)
     
-    # Define uma projeção Transverse Mercator customizada centrada na longitude mediana.
+    # Define a custom Transverse Mercator projection centered at the median longitude.
     crs_custom = CRS.from_string(f"+proj=tmerc +lon_0={median_lon} +datum=WGS84")
     
-    # Cria o objeto CRS de entrada.
+    # Create the input CRS object.
     input_crs = CRS.from_user_input(crs_input)
     
-    # Cria um transformador do CRS de entrada para a projeção customizada.
+    # Create a transformer from the input CRS to the custom projection.
     transformer = Transformer.from_crs(input_crs, crs_custom, always_xy=True)
     
-    # Realiza a transformação vetorizada.
+    # Perform a vectorized transformation.
     x, y = transformer.transform(lon, lat)
     projCoords = np.array([x, y])
     
@@ -57,9 +58,9 @@ def tiff_to_dataframe(elevation_1_file, elevation_2_file, gravity_1_file, gravit
         transform_grav2 = src_grav2.transform
         height_g2, width_g2 = grav_arr2.shape
 
-    latitude_1 = []
+    lat_macico = []
     latitude_2 = []
-    longitude_1 = []
+    lon_macico = []
     longitude_2 = []
     elevation_1_list = [] 
     elevation_2_list = []  
@@ -70,8 +71,8 @@ def tiff_to_dataframe(elevation_1_file, elevation_2_file, gravity_1_file, gravit
     for row in range(height_1):
         for col in range(width_1):
             lon_1, lat_1 = transform_elev1 * (col, row)
-            latitude_1.append(lat_1)
-            longitude_1.append(lon_1)
+            lat_macico.append(lat_1)
+            lon_macico.append(lon_1)
             elevation_1_list.append(elev_arr1[row, col])
             gravity_1_list.append(grav_arr1[row, col])
         
@@ -86,8 +87,8 @@ def tiff_to_dataframe(elevation_1_file, elevation_2_file, gravity_1_file, gravit
 
     # Assigning Maciço's DataFrame   
     df_macico = pd.DataFrame({
-        'Latitude_Maciço': latitude_1,
-        'Longitude_Maciço': longitude_1,
+        'Latitude_Maciço': lat_macico,
+        'Longitude_Maciço': lon_macico,
         'Elevation_Maciço': elevation_1_list,
         'Gravity_Maciço': gravity_1_list
     })
@@ -185,7 +186,7 @@ grid_recorte = xr.DataArray(
     dims = ['latitude', 'longitude']
 )
 
-# Project the topography to plain coordinate
+# Projecting the topography to plain coordinate
 transformer = Transformer.from_crs("EPSG:4326", crs_custom_maciço, always_xy=True)
 
 # Defining a correct inverse projection
@@ -195,7 +196,7 @@ def proj_func(lon, lat, inverse=False):
     else:
         return transformer.transform (lon, lat)
 
-# Reproject the grid 
+# Reprojecting the grid 
 topo_plain_maciço = vd.project_grid(grid_maciço, projection=proj_func)
 topo_plain_recorte = vd.project_grid(grid_recorte, projection= proj_func)
 
@@ -212,10 +213,9 @@ topo_prisms_maciço = hm.prism_layer(
 )
 
 prism_center_recorte =(topo_plain_recorte.easting, topo_plain_recorte.northing)
-
 surface = topo_plain_recorte.values
 # Define the density for Recorte
-density_recorte = np.where(topo_plain_recorte >= 0, 2570, 1040 - 2570)
+density_recorte = np.where(topo_plain_recorte >= 0, 2670, 1040 - 2670)
 topo_prism_recorte = hm.prism_layer(
     prism_center_recorte,
     surface=surface,
@@ -223,23 +223,61 @@ topo_prism_recorte = hm.prism_layer(
     properties={'density': density_recorte}
 )
 
-# Compute the gravity effect of the Maciço's chunk
+# Computing the gravity effect of the Maciço's chunk
 coordinates_maciço = (df_macico['Easting'].values, df_macico['Northing'].values, df_macico['Elevation_Maciço'].values)
 result_maciço = topo_prisms_maciço.prism_layer.gravity(coordinates_maciço, field="g_z")
 
-# Computie the gravity effect of the Recorte's chunk
+# Computiing the gravity effect of the Recorte's chunk
 coordinates_recorte = (df_recorte['Easting'].values, df_recorte['Northing'].values, df_recorte['Elevation_Recorte'].values)
 result_recorte = topo_prism_recorte.prism_layer.gravity(coordinates_recorte, field="g_z")
 
-# Compute the Bouguer Disturbance for the Maciço's chunk
-Maciços_Bouguer = df_macico['Gravity_Maciço'].values - result_maciço
+# Computing the Bouguer disturbance for the Maciço's chunk
+maciços_Bouguer = df_macico['Gravity_Maciço'].values - result_maciço
 
-# Compute the Bouguer Disturbance for the Recorte's chunk
-Recorte_Bouguer = df_recorte['Gravity_Recorte'].values - result_recorte
+# Computing the Bouguer disturbance for the Recorte's chunk
+recorte_Bouguer = df_recorte['Gravity_Recorte'].values - result_recorte
 
-# Add the Bouguer Values to each 
-df_macico['Bouguer'] = Maciços_Bouguer
-df_recorte['Bouguer'] = Recorte_Bouguer
+# Adding the Bouguer Values to each DataFrame
+df_macico['Bouguer'] = maciços_Bouguer
+df_recorte['Bouguer'] = recorte_Bouguer
+
+# Setting up the HyperParameters to adjutst the Maciço's Bouguer values 
+maciços_first_guess = hm.EquivalentSources(depth=1, damping=1)
+maciços_first_guess.fit(coordinates_maciço, df_macico['Bouguer'].values)
+
+score_maciços_first_guess = np.mean(
+    vd.cross_val_score(
+        maciços_first_guess,
+        coordinates_maciço,
+        df_macico['Bouguer'].values,
+    )
+)
+
+dampings = [0.001, 0.001, 0.1, 1, 10, 100, 1000]
+depths = [1e3, 2e3, 5e3, 10e3, 20e3, 50e3, 100e3]
+
+# Estimating the Hyperparameters
+maciços_parameters = [
+    dict(damping =combo[0], depth=combo[1])
+    for combo in itertools.product(dampings, depths)
+]
+
+maciço_equivalent_sources = hm.EquivalentSources()
+scores = []
+for parameters in maciços_parameters:
+    maciço_equivalent_sources(**parameters)
+    score = np.mean(
+        vd.cross_val_score(
+            maciço_equivalent_sources,
+            coordinates_maciço,
+            
+        )
+    )
 
 print("Hello World")
+
+
+
+
+
 
