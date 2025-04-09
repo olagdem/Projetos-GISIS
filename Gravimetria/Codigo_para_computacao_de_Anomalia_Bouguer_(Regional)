@@ -241,6 +241,16 @@ recorte_Bouguer = df_recorte['Gravity_Recorte'].values - result_recorte
 df_macico['Bouguer'] = maciços_Bouguer
 df_recorte['Bouguer'] = recorte_Bouguer
 
+# Clearing NaN values before defining the Hyperparameters
+df_macico.dropna(subset=['Easting', 'Northing', 'Elevation_Maciço', 'Bouguer'], inplace=True)
+df_recorte.dropna(subset=['Easting', 'Northing', 'Elevation_Recorte', 'Bouguer'], inplace=True)
+
+# Updating the Dataframes with the coordinates updated 
+coordinates_maciço = (
+    df_macico['Easting'].values,
+    df_macico['Northing'].values,
+    df_macico['Elevation_Maciço'].values
+)
 # Setting up the HyperParameters to adjutst the Maciço's Bouguer values 
 maciços_first_guess = hm.EquivalentSources(depth=1, damping=1)
 maciços_first_guess.fit(coordinates_maciço, df_macico['Bouguer'].values)
@@ -265,16 +275,29 @@ maciços_parameters = [
 maciço_equivalent_sources = hm.EquivalentSources()
 scores = []
 for parameters in maciços_parameters:
-    maciço_equivalent_sources(**parameters)
+    model_macico = hm.EquivalentSources(**parameters)
     score = np.mean(
         vd.cross_val_score(
-            maciço_equivalent_sources,
+            model_macico,
             coordinates_maciço,
-            
+            df_macico['Bouguer'].values
         )
     )
+    scores.append(score)
 
-print("Hello World")
+best_1 = np.argmax(scores)
+
+# Optional: Printing the results
+print("Best score:", scores[best_1])
+print("Score with defaults:", score_maciços_first_guess)
+print("Best Parameters:", maciços_parameters[best_1])
+
+print('Hello World')
+
+
+
+
+
 
 
 
