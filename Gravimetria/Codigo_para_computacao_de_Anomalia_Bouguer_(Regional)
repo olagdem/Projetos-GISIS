@@ -394,8 +394,8 @@ for var in macicos_grid_bouguer.data_vars:
     macico_da_ds.rio.to_raster(f"{output_file_prefix}_{var}_spacing{spacing}.tif")
 # Exporting the Maciço's result to a NetCDF file
 macicos_grid_bouguer = macicos_grid_bouguer.reindex(latitude=list(reversed(macicos_grid_bouguer.y)))
-macicos_grid_bouguer.rio.set_spacial_dims(x_dims="x", y_dims="y", inplace=True)
-macicos_grid_bouguer.write_coordinate_system(inplace=True).to_netcdf(
+macicos_grid_bouguer.rio.set_spatial_dims(x_dim="x", y_dim="y", inplace=True)
+macicos_grid_bouguer.rio.write_coordinate_system(inplace=True).to_netcdf(
     f"{output_file_prefix}_spacing{spacing}.nc"
 )
 
@@ -414,19 +414,8 @@ for var in recorte_grid_bouguer.data_vars:
     recorte_da_ds.rio.to_raster(f"{output_file_prefix}_{var}_spacing{spacing}.tif")
 # Exporting the Recorte's result to a NetCDF file
 recorte_grid_bouguer = recorte_grid_bouguer.reindex(latitude=list(reversed(recorte_grid_bouguer.y)))
-recorte_grid_bouguer.rio.set_spacial_dims(x_dims="x", y_dims="y", inplace=True)
-recorte_grid_bouguer.write_coordinate_system(inplace=True).to_netcdf(
+recorte_grid_bouguer.rio.set_spatial_dims(x_dim="x", y_dim="y", inplace=True)
+recorte_grid_bouguer.rio.write_coordinate_system(inplace=True).to_netcdf(
     f"{output_file_prefix}_spacing{spacing}.nc"
 )
-
-
-
-
-
-
-
-
-
-
-
 
