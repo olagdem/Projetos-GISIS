@@ -206,7 +206,7 @@ topo_plain_recorte = vd.project_grid(grid_recorte, projection= proj_func)
 prism_center_maciço = (topo_plain_maciço.easting, topo_plain_maciço.northing)
 surface = topo_plain_maciço.values
 # Define the density for maciço
-density_maciço = np.where(topo_plain_maciço >= 0, 2570, 1040 - 2670)
+density_maciço = np.where(topo_plain_maciço = 2570)
 topo_prisms_maciço = hm.prism_layer(
     prism_center_maciço,
     surface = surface,
@@ -217,7 +217,7 @@ topo_prisms_maciço = hm.prism_layer(
 prism_center_recorte =(topo_plain_recorte.easting, topo_plain_recorte.northing)
 surface = topo_plain_recorte.values
 # Define the density for Recorte
-density_recorte = np.where(topo_plain_recorte >= 0, 2670, 1040 - 2670)
+density_recorte = np.where(topo_plain_recorte >= 2670)
 topo_prism_recorte = hm.prism_layer(
     prism_center_recorte,
     surface=surface,
@@ -380,7 +380,7 @@ plt.gca().set_aspect('equal')
 plt.show()
 
 # Exporting the Macico's result to a TIFF file
-output_file_prefix = "Macico's Bouguer Anomaly_v01"
+output_file_prefix = "Macico's Bouguer Anomaly_v02"
 spacing = 100
 macicos_grid_bouguer = macicos_grid_bouguer.drop_vars(["upward"], errors="ignore").rename({"easting": "x", "northing": "y"})
 macicos_grid_bouguer.rio.write_crs(crs_custom_maciço, inplace=True)
@@ -400,7 +400,7 @@ macicos_grid_bouguer.rio.write_coordinate_system(inplace=True).to_netcdf(
 )
 
 # Exporting the Recorte's result to a TIFF file
-output_file_prefix = "Recorte's Bouguer Anomaly_v01"
+output_file_prefix = "Recorte's Bouguer Anomaly_v02"
 spacing = 100
 recorte_grid_bouguer = recorte_grid_bouguer.drop_vars(["upward"], errors="ignore").rename({"easting": "x", "northing": "y"})
 recorte_grid_bouguer.rio.write_crs(crs_custom_recorte, inplace=True)\
