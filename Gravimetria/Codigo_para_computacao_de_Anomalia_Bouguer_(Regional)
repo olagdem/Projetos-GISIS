@@ -7,6 +7,8 @@ import xarray as xr
 import verde as vd
 import harmonica as hm
 import itertools
+import matplotlib.pyplot as plt
+import rioxarray 
 
 # Defining the custom projection
 def geographic2projected(crs_input, geoCoords):
@@ -104,10 +106,10 @@ def tiff_to_dataframe(elevation_1_file, elevation_2_file, gravity_1_file, gravit
     return df_macico, df_recorte
 
 # Defining Filepaths
-elevation_1_file = r'S:\Dados RESENDE\Arquivos Resende\Maciços Alcalinos (Bathymetry).tif'
-elevation_2_file = r'S:\Dados RESENDE\Arquivos Resende\Recorte Maciços (Bathymetry).tif'
-gravity_1_file = r'S:\Dados RESENDE\Arquivos Resende\Maciços Alcalinos (Free-Air).tif'
-gravity_2_file = r'S:\Dados RESENDE\Arquivos Resende\Recorte Maciços (Free-Air).tif'
+elevation_1_file = r'C:\Users\lzlag\Documents\Maciços Alcalinos (Bathymetry).tif'
+elevation_2_file = r'C:\Users\lzlag\Documents\Recorte Maciços (Bathymetry).tif'
+gravity_1_file = r'C:\Users\lzlag\Documents\Maciços Alcalinos (Free-Air).tif'
+gravity_2_file = r'C:\Users\lzlag\Documents\Recorte Maciços (Free-Air).tif'
 
 # Correct function call with four file paths
 df_macico, df_recorte = tiff_to_dataframe(elevation_1_file, elevation_2_file, gravity_1_file, gravity_2_file)
@@ -130,8 +132,8 @@ crs_custom_recorte, proj_coords_recorte = geographic2projected(
 df_recorte = df_recorte.assign(Easting=proj_coords_recorte[0], Northing=proj_coords_recorte[1])
 
 # Reading the Topography File 
-topography_1_file = r'S:\Dados RESENDE\Arquivos Resende\Maciços Alcalinos (Bathymetry).tif'
-topography_2_file = r'S:\Dados RESENDE\Arquivos Resende\Recorte Maciços (Bathymetry).tif'
+topography_1_file = r'C:\Users\lzlag\Documents\Maciços Alcalinos (Bathymetry).tif'
+topography_2_file = r'C:\Users\lzlag\Documents\Recorte Maciços (Bathymetry).tif'
 
 with rasterio.open(topography_1_file) as src:
     data_topo_1 = src.read(1)
@@ -245,12 +247,20 @@ df_recorte['Bouguer'] = recorte_Bouguer
 df_macico.dropna(subset=['Easting', 'Northing', 'Elevation_Maciço', 'Bouguer'], inplace=True)
 df_recorte.dropna(subset=['Easting', 'Northing', 'Elevation_Recorte', 'Bouguer'], inplace=True)
 
-# Updating the Dataframes with the coordinates updated 
+# Updating the Macicos Dataframe with the clean coordinates values
 coordinates_maciço = (
     df_macico['Easting'].values,
     df_macico['Northing'].values,
     df_macico['Elevation_Maciço'].values
 )
+
+# Updating the Recorte Dataframe with the clean coordinates values
+coordinates_recorte = (
+    df_recorte['Easting'].values,
+    df_recorte['Northing'].values,
+    df_recorte['Elevation_Recorte'].values
+)
+
 # Setting up the HyperParameters to adjutst the Maciço's Bouguer values 
 maciços_first_guess = hm.EquivalentSources(depth=1, damping=1)
 maciços_first_guess.fit(coordinates_maciço, df_macico['Bouguer'].values)
@@ -284,7 +294,6 @@ for parameters in maciços_parameters:
         )
     )
     scores.append(score)
-
 best_1 = np.argmax(scores)
 
 # Optional: Printing the results
@@ -292,7 +301,124 @@ print("Best score:", scores[best_1])
 print("Score with defaults:", score_maciços_first_guess)
 print("Best Parameters:", maciços_parameters[best_1])
 
-print('Hello World')
+macicos_best = hm.EquivalentSources(**maciços_parameters[best_1]).fit(
+    coordinates_maciço, df_macico['Bouguer'].values
+)
+
+# Setting up the HyperParameters to adjutst the Recorte's Bouguer values 
+recorte_first_guess = hm.EquivalentSources(depth=1, damping=1)
+recorte_first_guess.fit(coordinates_recorte, df_recorte['Bouguer'].values)
+
+scores_recorte_first_guess = np.mean(
+    vd.cross_val_score(
+        recorte_first_guess,
+        coordinates_recorte,
+        df_recorte['Bouguer'].values,
+    )
+)
+
+dampings = [0.001, 0.001, 0.1, 1, 10, 100, 1000]
+depths = [1e3, 2e3, 5e3, 10e3, 20e3, 50e3, 100e3]
+
+# Estimating the Hyperparameters
+recorte_parameters = [
+    dict(damping =combo[0], depth=combo[1])
+    for combo in itertools.product(dampings, depths)
+]
+
+recorte_equivalent_sources = hm.EquivalentSources()
+scores_recorte = []
+for parameters in recorte_parameters:
+    model_recorte = hm.EquivalentSources(**parameters)
+    score = np.mean(
+        vd.cross_val_score(
+            model_recorte,
+            coordinates_recorte,
+            df_recorte['Bouguer'].values
+        )
+    )
+    scores_recorte.append(score)
+best_2 = np.argmax(scores_recorte)
+
+# Optional: Printing the results    
+print("Best score:", scores_recorte[best_2])
+print("Score with defaults:", scores_recorte_first_guess)
+print("Best Parameters:", recorte_parameters[best_2])
+
+recorte_best = hm.EquivalentSources(**recorte_parameters[best_2]).fit(
+    coordinates_recorte, df_recorte['Bouguer'].values
+)
+
+# Creating the Macico's regular grid
+macicos_region = vd.get_region(coordinates_maciço)
+macicos_grid_coords = vd.grid_coordinates(
+    region=macicos_region,
+    spacing=2e3,
+    extra_coords=2.7e3
+)
+macicos_grid_bouguer = macicos_best.grid(macicos_grid_coords, data_names=['Bouguer'])
+
+# Creating the Recorte's regular grid
+recorte_region = vd.get_region(coordinates_recorte)
+recorte_grid_coords = vd.grid_coordinates(
+    region=recorte_region,
+    spacing=2e3,
+    extra_coords=2.7e3
+)
+recorte_grid_bouguer = recorte_best.grid(recorte_grid_coords, data_names=['Bouguer'])
+
+# Plotting the Bouguer Anomaly for the Maciço's chunk
+macicos_grid_bouguer.Bouguer.plot()
+plt.gca().invert_yaxis()
+plt.gca().set_aspect('equal')
+plt.show()
+
+# Plotting the Bouguer Anomaly for the Recorte's chunk
+recorte_grid_bouguer.Bouguer.plot()
+plt.gca().invert_yaxis()
+plt.gca().set_aspect('equal')
+plt.show()
+
+# Exporting the Macico's result to a TIFF file
+output_file_prefix = "Macico's Bouguer Anomaly_v01"
+spacing = 100
+macicos_grid_bouguer = macicos_grid_bouguer.drop_vars(["upward"], errors="ignore").rename({"easting": "x", "northing": "y"})
+macicos_grid_bouguer.rio.write_crs(crs_custom_maciço, inplace=True)
+
+# Writing each data variable to a separate TIFF file
+for var in macicos_grid_bouguer.data_vars:
+    # Extracting the DataArray
+    macico_da= macicos_grid_bouguer[var]
+    macico_da_ds = macico_da.to_dataset(name=var)
+    macico_da_ds.rio.write_crs(crs_custom_maciço, inplace=True)
+    macico_da_ds.rio.to_raster(f"{output_file_prefix}_{var}_spacing{spacing}.tif")
+# Exporting the Maciço's result to a NetCDF file
+macicos_grid_bouguer = macicos_grid_bouguer.reindex(latitude=list(reversed(macicos_grid_bouguer.y)))
+macicos_grid_bouguer.rio.set_spacial_dims(x_dims="x", y_dims="y", inplace=True)
+macicos_grid_bouguer.write_coordinate_system(inplace=True).to_netcdf(
+    f"{output_file_prefix}_spacing{spacing}.nc"
+)
+
+# Exporting the Recorte's result to a TIFF file
+output_file_prefix = "Recorte's Bouguer Anomaly_v01"
+spacing = 100
+recorte_grid_bouguer = recorte_grid_bouguer.drop_vars(["upward"], errors="ignore").rename({"easting": "x", "northing": "y"})
+recorte_grid_bouguer.rio.write_crs(crs_custom_recorte, inplace=True)\
+
+# Writing each data variable to a separate TIFF file
+for var in recorte_grid_bouguer.data_vars:
+    # Extracting the DataArray
+    recorte_da= recorte_grid_bouguer[var]
+    recorte_da_ds = recorte_da.to_dataset(name=var)
+    recorte_da_ds.rio.write_crs(crs_custom_recorte, inplace=True)
+    recorte_da_ds.rio.to_raster(f"{output_file_prefix}_{var}_spacing{spacing}.tif")
+# Exporting the Recorte's result to a NetCDF file
+recorte_grid_bouguer = recorte_grid_bouguer.reindex(latitude=list(reversed(recorte_grid_bouguer.y)))
+recorte_grid_bouguer.rio.set_spacial_dims(x_dims="x", y_dims="y", inplace=True)
+recorte_grid_bouguer.write_coordinate_system(inplace=True).to_netcdf(
+    f"{output_file_prefix}_spacing{spacing}.nc"
+)
+
 
 
 
