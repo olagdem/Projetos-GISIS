@@ -47,8 +47,8 @@ def tif_to_dataframe(elevation_tif_path, gravity_tif_path):
                 'Gravity': gravities
             })
 
-elevation_tif_path = r"S:\Dados RESENDE\AOI Resende (Topography).tif"
-gravity_tif_path   = r"S:\Dados RESENDE\AOI Resende (Free-Air).tif"
+elevation_tif_path = r"S:\Dados RESENDE\AOI Resende (Topography+).tif"
+gravity_tif_path   = r"S:\Dados RESENDE\AOI Resende (Free-Air+).tif"
 df = tif_to_dataframe(elevation_tif_path, gravity_tif_path)
 
 # Applying the projection
@@ -63,7 +63,7 @@ df = df.assign(
 )
 
 # Reading the Topography file
-topography_file = r"S:\Dados RESENDE\AOI Resende (Topography).tif"
+topography_file = r"S:\Dados RESENDE\AOI Resende (Topography+).tif"
 with rasterio.open(topography_file) as src:
     data_topo = src.read(1)
     lon_min, lat_min, lon_max, lat_max = src.bounds
@@ -138,14 +138,63 @@ topo_prisms = hm.prism_layer(
     properties={'density': density}
 )
 
-# Compute gravity response at observation points
+# Compute the Bouguer at observation points
 obs_coords = (
-    df['Easting'].values,    # easting (m)
-    df['Northing'].values,   # northing (m)
-    df['Elevation'].values   # elevation (m)
+    df['Easting'].values,   
+    df['Northing'].values,   
+    df['Elevation'].values   
 )
-# Using the prism_layer accessor to calculate vertical gravity component (g_z)
 result = topo_prisms.prism_layer.gravity(obs_coords, field="g_z")
+bouguer = df['Gravity'].values - result
+df['Bouguer'] = bouguer
+
+# Setting up the Hyperparameters to adjust the Bouguer values
+eqs_first_guess = hm.EquivalentSources(depth=1, damping=1)
+eqs_first_guess.fit(obs_coords, df['Bouguer'].values)
+
+score_first_guess = np.mean(
+    vd.cross_val_score(
+        eqs_first_guess,
+        obs_coords,
+        df['Bouguer'].values,
+    )
+)
+score_first_guess
+
+dampings = [0.001, 0.001, 0.1, 1, 10, 100, 1000]
+depths = [1e3, 2e3, 5e3, 10e3, 20e3, 50e3, 100e3]
+
+# Estimating the Hyperparameters
+parameter_sets = [
+    dict(damping=combo[0], depth=combo[1])
+    for combo in itertools.product(dampings, depths)
+]
+print("Number of combinations:", len(parameter_sets))   
+print("Combinations:", parameter_sets)
+
+equivalent_sources = hm.EquivalentSources()
+
+scores = []
+for params in parameter_sets:
+    equivalent_sources.set_params(**params)
+    score = np.mean(
+        vd.cross_val_score(
+            equivalent_sources,
+            obs_coords,
+            df['Bouguer'].values,
+        )
+    )
+    scores.append(score)
+scores
+
+best = np.argmax(scores)
+print("Best score:", scores[best])
+print("Score with defaults:", score_first_guess)
+print("Best parameters:", parameter_sets[best])
+
+eqs_best = hm.EquivalentSources(**parameter_sets[best]).fit(
+    obs_coords, df['Bouguer'].values
+)
 
 # Add the computed gravity to the DataFrame
 print("Hello World")
