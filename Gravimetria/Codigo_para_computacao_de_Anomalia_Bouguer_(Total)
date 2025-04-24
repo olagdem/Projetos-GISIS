@@ -72,8 +72,8 @@ def tif_to_dataframe(elevation_tif_path, gravity_tif_path):
             return df
 
 # Defining Filepaths
-elevation_tif_path = r'F:\Pasta Miquelutti\Total Bathymetry pixel reduced (WGS84).tif'
-gravity_tif_path   = r'F:\Pasta Miquelutti\Total Free-air pixel reduced (WGS84).tif'
+elevation_tif_path = r"S:\Dados RESENDE\AOI Resende (Topography+).tif"
+gravity_tif_path   = r"S:\Dados RESENDE\AOI Resende (Free-Air+).tif"
 df = tif_to_dataframe(elevation_tif_path, gravity_tif_path)
 
 # Applying the projection 
@@ -83,7 +83,7 @@ crs_custom, proj_coords = geographic2projected(input_crs, [df['Latitude'].values
 df = df.assign(Easting=proj_coords[0], Northing=proj_coords[1])
 
 # Reading the Topography file
-tif_path = r"F:\Pasta Miquelutti\Total Bathymetry pixel reduced (WGS84).tif"
+tif_path = r"S:\Dados RESENDE\AOI Resende (Topography+).tif"
 with rasterio.open(tif_path) as src:
     data = src.read(1)
     lon_min, lat_min, lon_max, lat_max = src.bounds
@@ -145,9 +145,6 @@ bouguer_disturbance = df['Gravity'].values - result
 df['Bouguer'] = bouguer_disturbance
 
 # Setting up the Hyperparameters to adjust the Bouguer values
-point1_profile = (-45, -22.34)
-point2_profile= (-44.5, -22.34)
-
 eqs_first_guess = hm.EquivalentSources(depth=1, damping=1)
 eqs_first_guess.fit(coordinates, df['Bouguer'].values)
 
@@ -210,22 +207,8 @@ plt.gca().invert_yaxis()
 plt.gca().set_aspect("equal")
 plt.show()
 
-# Interpolating the Bouguer data along a profile.
-point1 = (-45, -22.34)
-point2 = (-44.5, -22.34)
-
-profile = eqs_best.profile(
-    point1_profile,
-    point2_profile,
-    upward=df['Elevation'].max(), 
-    size=1000,  
-    data_names=["Bouguer"], 
-    dims=("Latitude", "Longitude"),
-    projection=proj_func, 
-)
-
 # Exporting the results to NetCDF and TIFF files
-output_file_prefix = "bouguer_anomaly_v09"
+output_file_prefix = "bouguer_anomaly_v11"
 spacing = 100
 grid_bouguer = grid_bouguer.drop_vars(["upward"], errors='ignore').rename({'easting': 'x', 'northing': 'y'})
 grid_bouguer.rio.write_crs(crs_custom, inplace=True)
@@ -245,9 +228,5 @@ grid_bouguer.rio.set_spatial_dims(x_dim="x", y_dim="y", inplace=True)
 grid_bouguer.rio.write_coordinate_system(inplace=True).to_netcdf(
     f"{output_file_prefix}_spacing{spacing}.nc"
 )
-
-
-
-
 
 
