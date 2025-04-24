@@ -196,5 +196,37 @@ eqs_best = hm.EquivalentSources(**parameter_sets[best]).fit(
     obs_coords, df['Bouguer'].values
 )
 
-# Add the computed gravity to the DataFrame
-print("Hello World")
+# Defining the grid coordinates 
+region = vd.get_region(obs_coords)
+grid_coords = vd.grid_coordinates(
+    region=region,
+    spacing=2e3,
+    extra_coords=2.7e3
+)
+grid_bouguer = eqs_best.grid(grid_coords, data_names= ['Bouguer'])
+
+# Plotting the Bouguer disturbance
+grid_bouguer.Bouguer.plot()
+plt.gca().set_aspect("equal")
+plt.gca().invert_yaxis
+plt.show()
+
+# Exporting the Macico's result to a TIFF file
+output_file_prefix = "Macico's Bouguer Anomaly_v03"
+spacing = 100
+macicos_grid_bouguer = grid_bouguer.drop_vars(["upward"], errors="ignore").rename({"easting": "x", "northing": "y"})
+macicos_grid_bouguer.rio.write_crs(crs_custom, inplace=True)
+
+# Writing each data variable to a separate TIFF file
+for var in macicos_grid_bouguer.data_vars:
+    # Extracting the DataArray
+    macico_da= macicos_grid_bouguer[var]
+    macico_da_ds = macico_da.to_dataset(name=var)
+    macico_da_ds.rio.write_crs(crs_custom, inplace=True)
+    macico_da_ds.rio.to_raster(f"{output_file_prefix}_{var}_spacing{spacing}.tif")
+# Exporting the Maciço's result to a NetCDF file
+macicos_grid_bouguer = macicos_grid_bouguer.reindex(latitude=list(reversed(macicos_grid_bouguer.y)))
+macicos_grid_bouguer.rio.set_spatial_dims(x_dim="x", y_dim="y", inplace=True)
+macicos_grid_bouguer.rio.write_coordinate_system(inplace=True).to_netcdf(
+    f"{output_file_prefix}_spacing{spacing}.nc"
+)
