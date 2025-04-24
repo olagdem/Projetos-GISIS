@@ -1,1 +1,151 @@
+import numpy as np
+import pandas as pd 
+import rasterio
+from pyproj import CRS, Transformer
+from pyproj.enums import TransformDirection
+import xarray as xr
+import verde as vd
+import harmonica as hm
+import itertools
+import matplotlib.pyplot as plt
+import rioxarray 
+import geopandas as gpd
+from shapely.geometry import Point
 
+# Defining the custom projection
+def geographic2projected(crs_input, geoCoords):
+    lat = np.asarray(geoCoords[0])
+    lon = np.asarray(geoCoords[1])
+    median_lon = np.median(lon)
+    crs_custom = CRS.from_string(f"+proj=tmerc +lon_0={median_lon} +datum=WGS84")
+    input_crs = CRS.from_user_input(crs_input)
+    transformer = Transformer.from_crs(input_crs, crs_custom, always_xy=True)
+    x, y = transformer.transform(lon, lat)
+    projCoords = np.array([x, y])
+    return crs_custom, projCoords
+
+# Converting the TIFF files to DataFrame
+def tif_to_dataframe(elevation_tif_path, gravity_tif_path):
+    with rasterio.open(elevation_tif_path) as src_elevation:
+        elevation = src_elevation.read(1)
+        transform_elevation = src_elevation.transform
+        height, width = elevation.shape
+        with rasterio.open(gravity_tif_path) as src_gravity:
+            gravity = src_gravity.read(1)
+            latitudes, longitudes, elevations, gravities = [], [], [], []
+            for row in range(height):
+                for col in range(width):
+                    lon, lat = transform_elevation * (col, row)
+                    latitudes.append(lat)
+                    longitudes.append(lon)
+                    elevations.append(elevation[row, col])
+                    gravities.append(gravity[row, col])
+            return pd.DataFrame({
+                'Latitude': latitudes,
+                'Longitude': longitudes,
+                'Elevation': elevations,
+                'Gravity': gravities
+            })
+
+elevation_tif_path = r"S:\Dados RESENDE\AOI Resende (Topography).tif"
+gravity_tif_path   = r"S:\Dados RESENDE\AOI Resende (Free-Air).tif"
+df = tif_to_dataframe(elevation_tif_path, gravity_tif_path)
+
+# Applying the projection
+input_crs = 'EPSG:4326'
+crs_custom, projCoords = geographic2projected(
+    input_crs,
+    [df['Latitude'].values, df['Longitude'].values]
+)
+df = df.assign(
+    Easting=projCoords[0],
+    Northing=projCoords[1]
+)
+
+# Reading the Topography file
+topography_file = r"S:\Dados RESENDE\AOI Resende (Topography).tif"
+with rasterio.open(topography_file) as src:
+    data_topo = src.read(1)
+    lon_min, lat_min, lon_max, lat_max = src.bounds
+    lon_res = (lon_max - lon_min) / src.width
+    lat_res = (lat_max - lat_min) / src.height
+    lon_topo = np.linspace(lon_min + lon_res / 2, lon_max - lon_res /2, src.width)
+    lat_topo = np.linspace(lat_min + lat_res / 2, lat_max - lat_res /2, src.height)
+
+# Creating a Topography Dataset
+ds_topo = xr.Dataset(
+    {'bedrock': (['latitude', 'longitude'], data_topo)},
+    coords={'latitude': lat_topo, 'longitude': lon_topo}
+)
+
+# Creating a DataArray for gridding
+grid = xr.DataArray(
+    ds_topo.bedrock.values,
+    coords={'latitude': lat_topo, 'longitude': lon_topo},
+    dims=['latitude', 'longitude']
+)
+
+# Projecting the topography to plain coordinates 
+transformer = Transformer.from_crs("EPSG:4326", crs_custom, always_xy=True)
+
+def proj_func(lon, lat, inverse=False):
+    if inverse:
+        return transformer.transform(lon, lat, direction=TransformDirection.INVERSE)
+    else:
+        return transformer.transform(lon, lat)
+
+topo_plain = vd.project_grid(grid, projection=proj_func)
+
+# --- Region-specific density integration (applied at line 129) ---
+
+# Load and reproject your region polygon
+region_gdf = gpd.read_file(r"S:\Dados RESENDE\Arquivos Resende\Maciços Alcalinos.shp").to_crs(crs_custom)
+region_poly = region_gdf.unary_union
+
+# Build a 2D grid of prism centers matching topo_plain
+easting = topo_plain.coords['easting'].values
+northing = topo_plain.coords['northing'].values
+E, N = np.meshgrid(easting, northing)
+
+# Flatten grid to test point-in-polygon
+points = gpd.GeoDataFrame(
+    geometry=[Point(x, y) for x, y in zip(E.ravel(), N.ravel())],
+    crs=crs_custom
+)
+inside_mask = points.within(region_poly).values
+
+# Define densities: inside vs. outside region
+d_inside  = 2570
+d_outside = 2670
+density_flat = np.where(inside_mask, d_inside, d_outside)
+density = density_flat.reshape(E.shape)
+
+# Plot the density grid for verification
+plt.figure(figsize=(8, 6))
+plt.pcolormesh(E, N, density, shading='auto')
+plt.colorbar(label='Density (kg/m³)')
+plt.xlabel('Easting (m)')
+plt.ylabel('Northing (m)')
+plt.title('Density Map')
+plt.show()
+
+# Build the prism layer with region-specific densities
+surface = topo_plain.values
+topo_prisms = hm.prism_layer(
+    coordinates=(E, N),
+    surface=surface, 
+    reference=0,
+    properties={'density': density}
+)
+
+# Compute gravity response at observation points
+obs_coords = (
+    df['Easting'].values,    # easting (m)
+    df['Northing'].values,   # northing (m)
+    df['Elevation'].values   # elevation (m)
+)
+# Using the prism_layer accessor to calculate vertical gravity component (g_z)
+result = topo_prisms.prism_layer.gravity(obs_coords, field="g_z")
+
+# Add the computed gravity to the DataFrame
+print("Hello World")
