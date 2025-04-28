@@ -230,3 +230,20 @@ macicos_grid_bouguer.rio.set_spatial_dims(x_dim="x", y_dim="y", inplace=True)
 macicos_grid_bouguer.rio.write_coordinate_system(inplace=True).to_netcdf(
     f"{output_file_prefix}_spacing{spacing}.nc"
 )
+
+# Converte o Dataset em DataFrame “achatado”
+grid_df = macicos_grid_bouguer.to_dataframe().reset_index()
+
+# Salva como Excel
+excel_file = f"{output_file_prefix}_spacing{spacing}.xlsx"
+grid_df.to_excel(excel_file, index=False)
+print(f"Salvo Excel em: {excel_file}")
+
+# Salva como CSV
+csv_file = f"{output_file_prefix}_spacing{spacing}.csv"
+grid_df.to_csv(csv_file, index=False)
+print(f"Salvo CSV em: {csv_file}")
+
+obs_csv = "observacoes_resende.csv"
+df.to_csv(obs_csv, index=False)
+print(f"Observações salvas em: {obs_csv}")
