@@ -72,8 +72,8 @@ def tif_to_dataframe(elevation_tif_path, gravity_tif_path):
             return df
 
 # Defining Filepaths
-elevation_tif_path = r"S:\Dados RESENDE\AOI Resende (Topography+).tif"
-gravity_tif_path   = r"S:\Dados RESENDE\AOI Resende (Free-Air+).tif"
+elevation_tif_path = r"C:\Users\lzlag\Documents\AOI Resende (Elevation).tif"
+gravity_tif_path   = r"C:\Users\lzlag\Documents\AOI Resende(Free-Air).tif"
 df = tif_to_dataframe(elevation_tif_path, gravity_tif_path)
 
 # Applying the projection 
@@ -83,7 +83,7 @@ crs_custom, proj_coords = geographic2projected(input_crs, [df['Latitude'].values
 df = df.assign(Easting=proj_coords[0], Northing=proj_coords[1])
 
 # Reading the Topography file
-tif_path = r"S:\Dados RESENDE\AOI Resende (Topography+).tif"
+tif_path = r"C:\Users\lzlag\Documents\AOI Resende (Elevation).tif"
 with rasterio.open(tif_path) as src:
     data = src.read(1)
     lon_min, lat_min, lon_max, lat_max = src.bounds
@@ -208,7 +208,7 @@ plt.gca().set_aspect("equal")
 plt.show()
 
 # Exporting the results to NetCDF and TIFF files
-output_file_prefix = "bouguer_anomaly_v11"
+output_file_prefix = "bouguer_anomaly_v21"
 spacing = 100
 grid_bouguer = grid_bouguer.drop_vars(["upward"], errors='ignore').rename({'easting': 'x', 'northing': 'y'})
 grid_bouguer.rio.write_crs(crs_custom, inplace=True)
@@ -234,4 +234,3 @@ grid_df.to_csv(f"{output_file_prefix}_grid_spacing{spacing}.csv", index=False)
 grid_df.to_excel(f"{output_file_prefix}_grid_spacing{spacing}.xlsx", index=False)
 df.to_csv(f"{output_file_prefix}_points.csv", index=False)
 df.to_excel(f"{output_file_prefix}_points.xlsx", index=False)
-
