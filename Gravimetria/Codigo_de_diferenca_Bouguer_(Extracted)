@@ -1,0 +1,63 @@
+import pandas as pd
+import numpy as np
+import xarray as xr
+import rioxarray
+from rasterio.transform import from_origin
+
+# Reading the xlsx files
+total_bouguer = r"C:\Users\lzlag\bouguer_anomaly_v21_points.xlsx"
+vld_bouguer   = r"C:\Users\lzlag\Macico's Bouguer Anomaly_v06_points.xlsx"
+
+df_total = pd.read_excel(total_bouguer)
+df_vld   = pd.read_excel(vld_bouguer)
+
+# Merging common columns
+merge_cols = ['Latitude','Longitude','Easting','Northing','Elevation','Gravity']
+df = df_total.merge(df_vld, on=merge_cols, suffixes=('_total','_vld'))
+
+# Computing the differences
+df['Difference']     = df['Bouguer_total'] - df['Bouguer_vld']
+df['Per_Difference'] = df['Difference'] / df['Bouguer_total'] * 100
+print(df[['Bouguer_total','Bouguer_vld','Difference','Per_Difference']].head())
+
+# Build 2D grids from Easting/Northing
+xs = np.sort(df['Easting'].unique())
+ys = np.sort(df['Northing'].unique())
+dx = xs[1] - xs[0]
+dy = ys[1] - ys[0]
+grid_diff = df.pivot(index='Northing', columns='Easting', values='Difference')
+grid_pct  = df.pivot(index='Northing', columns='Easting', values='Per_Difference')
+
+# Create xarray Dataset
+da_diff = xr.DataArray(grid_diff.values,
+                       dims=('y','x'),
+                       coords={'y':grid_diff.index,'x':grid_diff.columns},
+                       name='Difference')
+da_pct  = xr.DataArray(grid_pct.values,
+                       dims=('y','x'),
+                       coords={'y':grid_pct.index,'x':grid_pct.columns},
+                       name='Per_Difference')
+ds = xr.Dataset({'Difference':da_diff,'Per_Difference':da_pct})
+
+# Define affine transform from the grid spacing
+transform = from_origin(
+    xs.min() - dx/2,
+    ys.max() + dy/2,
+    dx, 
+    dy
+)
+
+# Export GeoTIFFs
+output_prefix = "bouguer_diff_direct"
+for var in ds.data_vars:
+    ds[var].rio.to_raster(
+        f"{output_prefix}_{var}.tif",
+        transform=transform,
+        dtype=ds[var].dtype
+    )
+
+# Export NetCDF
+ds_out = ds.reindex(y=list(reversed(ds.y)))
+# optionally store transform in attributes
+ds_out.attrs['transform'] = transform.to_gdal()
+ds_out.to_netcdf(f"{output_prefix}.nc")
