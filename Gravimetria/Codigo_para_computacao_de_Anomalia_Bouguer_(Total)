@@ -229,4 +229,9 @@ grid_bouguer.rio.write_coordinate_system(inplace=True).to_netcdf(
     f"{output_file_prefix}_spacing{spacing}.nc"
 )
 
+grid_df = grid_bouguer.to_dataframe().reset_index()  
+grid_df.to_csv(f"{output_file_prefix}_grid_spacing{spacing}.csv", index=False)
+grid_df.to_excel(f"{output_file_prefix}_grid_spacing{spacing}.xlsx", index=False)
+df.to_csv(f"{output_file_prefix}_points.csv", index=False)
+df.to_excel(f"{output_file_prefix}_points.xlsx", index=False)
 
