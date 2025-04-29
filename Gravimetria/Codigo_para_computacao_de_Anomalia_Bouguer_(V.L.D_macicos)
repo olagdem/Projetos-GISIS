@@ -47,8 +47,8 @@ def tif_to_dataframe(elevation_tif_path, gravity_tif_path):
                 'Gravity': gravities
             })
 
-elevation_tif_path = r"S:\Dados RESENDE\AOI Resende (Topography+).tif"
-gravity_tif_path   = r"S:\Dados RESENDE\AOI Resende (Free-Air+).tif"
+elevation_tif_path = r"C:\Users\lzlag\Documents\AOI Resende (Elevation).tif"
+gravity_tif_path   = r"C:\Users\lzlag\Documents\AOI Resende(Free-Air).tif"
 df = tif_to_dataframe(elevation_tif_path, gravity_tif_path)
 
 # Applying the projection
@@ -63,7 +63,7 @@ df = df.assign(
 )
 
 # Reading the Topography file
-topography_file = r"S:\Dados RESENDE\AOI Resende (Topography+).tif"
+topography_file = r"C:\Users\lzlag\Documents\AOI Resende (Elevation).tif"
 with rasterio.open(topography_file) as src:
     data_topo = src.read(1)
     lon_min, lat_min, lon_max, lat_max = src.bounds
@@ -99,7 +99,7 @@ topo_plain = vd.project_grid(grid, projection=proj_func)
 # --- Region-specific density integration (applied at line 129) ---
 
 # Load and reproject your region polygon
-region_gdf = gpd.read_file(r"S:\Dados RESENDE\Arquivos Resende\Maciços Alcalinos.shp").to_crs(crs_custom)
+region_gdf = gpd.read_file(r"C:\Users\lzlag\Documents\Maciços Alcalinos.shp").to_crs(crs_custom)
 region_poly = region_gdf.unary_union
 
 # Build a 2D grid of prism centers matching topo_plain
@@ -137,7 +137,7 @@ topo_prisms = hm.prism_layer(
     reference=0,
     properties={'density': density}
 )
-
+df
 # Compute the Bouguer at observation points
 obs_coords = (
     df['Easting'].values,   
@@ -212,7 +212,7 @@ plt.gca().invert_yaxis
 plt.show()
 
 # Exporting the Macico's result to a TIFF file
-output_file_prefix = "Macico's Bouguer Anomaly_v03"
+output_file_prefix = "Macico's Bouguer Anomaly_v06"
 spacing = 100
 macicos_grid_bouguer = grid_bouguer.drop_vars(["upward"], errors="ignore").rename({"easting": "x", "northing": "y"})
 macicos_grid_bouguer.rio.write_crs(crs_custom, inplace=True)
