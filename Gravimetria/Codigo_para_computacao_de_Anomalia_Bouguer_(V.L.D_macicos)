@@ -1,1 +1,247 @@
+import os
+import itertools
+import numpy as np
+import pandas as pd
+import xarray as xr
+import matplotlib.pyplot as plt
+import rasterio
+import rioxarray
+import pyproj
+from pyproj import CRS, Transformer
+from pyproj.enums import TransformDirection
+import verde as vd
+import harmonica as hm
+import boule as bl
 
+# Defining the custom projection
+def geographic2projected(crs_input, geoCoords):
+    # Ensure input arrays are numpy arrays.
+    lat = np.asarray(geoCoords[0])
+    lon = np.asarray(geoCoords[1])
+    
+    # Calculate the median longitude to center the projection.
+    median_lon = np.median(lon)
+    
+    # Define a custom Transverse Mercator projection centered at the median longitude.
+    crs_custom = CRS.from_string(f"+proj=tmerc +lon_0={median_lon} +datum=WGS84")
+    
+    # Create the input CRS object.
+    input_crs = CRS.from_user_input(crs_input)
+    
+    # Create a transformer from the input CRS to the custom projection.
+    transformer = Transformer.from_crs(input_crs, crs_custom, always_xy=True)
+    
+    # Perform a vectorized transformation.
+    x, y = transformer.transform(lon, lat)
+    projCoords = np.array([x, y])
+    
+    return crs_custom, projCoords
+
+# Converting the TIFF files to DataFrame
+def tif_to_dataframe(elevation_tif_path, gravity_tif_path):
+    with rasterio.open(elevation_tif_path) as src_elevation:
+        elevation = src_elevation.read(1)
+        transform_elevation = src_elevation.transform
+        height, width = elevation.shape
+        
+        with rasterio.open(gravity_tif_path) as src_gravity:
+            gravity = src_gravity.read(1)
+            transform_gravity = src_gravity.transform
+            
+            latitudes = []
+            longitudes = []
+            elevations = []
+            gravities = [] 
+
+            for row in range(height):
+                for col in range(width):
+                    lon, lat = transform_elevation * (col, row)
+                    
+                    latitudes.append(lat)
+                    longitudes.append(lon)
+                    elevations.append(elevation[row, col])
+                    gravities.append(gravity[row, col])
+
+            df = pd.DataFrame({
+                'Latitude': latitudes,
+                'Longitude': longitudes,
+                'Elevation': elevations,
+                'Gravity': gravities
+            })
+
+            return df
+
+# Defining Filepaths
+elevation_tif_path = r"S:\Dados RESENDE\AOI Resende (Topography+).tif"
+gravity_tif_path   = r"S:\Dados RESENDE\AOI Resende (Free-Air+).tif"
+df = tif_to_dataframe(elevation_tif_path, gravity_tif_path)
+
+# Applying the projection 
+input_crs = "EPSG:4326"
+crs_custom, proj_coords = geographic2projected(input_crs, [df['Latitude'].values, df['Longitude'].values])
+# Adding the Easting/Northing coordinates to the DataFrame
+df = df.assign(Easting=proj_coords[0], Northing=proj_coords[1])
+
+# Reading the Topography file
+tif_path = r"S:\Dados RESENDE\AOI Resende (Topography+).tif"
+with rasterio.open(tif_path) as src:
+    data = src.read(1)
+    lon_min, lat_min, lon_max, lat_max = src.bounds
+    lon_res = (lon_max - lon_min) / src.width
+    lat_res = (lat_max - lat_min) / src.height
+    lons = np.linspace(lon_min + lon_res / 2, lon_max - lon_res / 2, src.width)
+    lats = np.linspace(lat_min + lat_res / 2, lat_max - lat_res / 2, src.height)
+
+# Creating a Topography Dataset
+dataset = xr.Dataset(
+    {
+        'bedrock': (['latitude', 'longitude'], data)
+    },
+    coords={
+        'longitude': lons,
+        'latitude': lats
+    }
+)
+
+# Creating a DataArray for the grid
+grid = xr.DataArray(
+    dataset.bedrock.values,
+    coords={'latitude': lats, 'longitude': lons},
+    dims=['latitude', 'longitude']
+)
+
+# Projecting the topography to plain coordinates
+transformer = Transformer.from_crs("EPSG:4326", crs_custom, always_xy=True)
+
+# Defining a correct invese projection
+def proj_func(lon, lat, inverse=False):
+    if inverse:
+        return transformer.transform(lon, lat, direction=TransformDirection.INVERSE)
+    else:
+        return transformer.transform(lon, lat)
+
+# Reprojecting the grid
+topo_plain = vd.project_grid(grid, projection=proj_func)
+
+# Modelling the topography using prisms
+prisms_center = (topo_plain.easting, topo_plain.northing)
+surface = topo_plain.values
+# Defineing the density *
+density = np.where(topo_plain >= 0, 2670, 1040 - 2670)
+topo_prisms = hm.prism_layer(
+    prisms_center,
+    surface=surface,
+    reference=0,
+    properties={"density": density}
+)
+
+# Computing the gravity effect of the prisms
+coordinates = (df['Easting'].values, df['Northing'].values, df['Elevation'].values)
+result = topo_prisms.prism_layer.gravity(coordinates, field="g_z")
+
+# Computing the Bouguer disturbance
+bouguer_disturbance = df['Gravity'].values - result
+# Adding the Bouguer values to the DataFrame
+df['Bouguer'] = bouguer_disturbance
+
+# Setting up the Hyperparameters to adjust the Bouguer values
+eqs_first_guess = hm.EquivalentSources(depth=1, damping=1)
+eqs_first_guess.fit(coordinates, df['Bouguer'].values)
+
+score_first_guess = np.mean(
+    vd.cross_val_score(
+        eqs_first_guess,
+        coordinates,
+        df['Bouguer'].values,
+    )
+)
+score_first_guess
+
+dampings = [0.001, 0.001, 0.1, 1, 10, 100, 1000]
+depths = [1e3, 2e3, 5e3, 10e3, 20e3, 50e3, 100e3]
+
+# Estimating the Hyperparameters
+parameter_sets = [
+    dict(damping=combo[0], depth=combo[1])
+    for combo in itertools.product(dampings, depths)
+]
+print("Number of combinations:", len(parameter_sets))   
+print("Combinations:", parameter_sets)
+
+equivalent_sources = hm.EquivalentSources()
+
+scores = []
+for params in parameter_sets:
+    equivalent_sources.set_params(**params)
+    score = np.mean(
+        vd.cross_val_score(
+            equivalent_sources,
+            coordinates,
+            df['Bouguer'].values,
+        )
+    )
+    scores.append(score)
+scores
+
+best = np.argmax(scores)
+print("Best score:", scores[best])
+print("Score with defaults:", score_first_guess)
+print("Best parameters:", parameter_sets[best])
+
+eqs_best = hm.EquivalentSources(**parameter_sets[best]).fit(
+    coordinates, df['Bouguer'].values
+)
+
+# Defining grid coordinates
+region = vd.get_region(coordinates)
+grid_coords = vd.grid_coordinates(
+    region=region,
+    spacing=2e3,
+    extra_coords=2.7e3,
+)
+
+grid_bouguer = eqs_best.grid(grid_coords, data_names= ['Bouguer'])
+
+grid_bouguer.Bouguer.plot()
+plt.gca().invert_yaxis()
+plt.gca().set_aspect("equal")
+plt.show()
+
+# Exporting the results to NetCDF and TIFF files
+output_file_prefix = "bouguer_anomaly_v11"
+spacing = 100
+grid_bouguer = grid_bouguer.drop_vars(["upward"], errors='ignore').rename({'easting': 'x', 'northing': 'y'})
+grid_bouguer.rio.write_crs(crs_custom, inplace=True)
+
+# Writing each data variable to a separate TIFF file.
+for var in grid_bouguer.data_vars:
+    # Extracting the DataArray
+    da = grid_bouguer[var]
+    # Converting to a Dataset so that to_raster becomes available
+    da_ds = da.to_dataset(name=var)
+    da_ds.rio.write_crs(crs_custom, inplace=True)
+    da_ds.rio.to_raster(f"{output_file_prefix}_{var}_spacing{spacing}.tif")
+
+# Writing the grid to a NetCDF file.
+grid_bouguer = grid_bouguer.reindex(latitude=list(reversed(grid_bouguer.y)))
+grid_bouguer.rio.set_spatial_dims(x_dim="x", y_dim="y", inplace=True)
+grid_bouguer.rio.write_coordinate_system(inplace=True).to_netcdf(
+    f"{output_file_prefix}_spacing{spacing}.nc"
+)
+
+# Converte o Dataset em DataFrame “achatado”
+grid_df = grid_bouguer.to_dataframe().reset_index()
+
+# Salva como Excel
+excel_file = f"{output_file_prefix}_spacing{spacing}.xlsx"
+grid_df.to_excel(excel_file, index=False)
+print(f"Salvo Excel em: {excel_file}")
+
+# Salva como CSV
+csv_file = f"{output_file_prefix}_spacing{spacing}.csv"
+grid_df.to_csv(csv_file, index=False)
+print(f"Salvo CSV em: {csv_file}")
+
+obs_csv = "observacoes_resende.csv"
+df.to_csv(obs_csv, index=False)
+print(f"Observações salvas em: {obs_csv}")
