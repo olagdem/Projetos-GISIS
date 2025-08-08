@@ -148,34 +148,6 @@ result = topo_prisms.prism_layer.gravity(obs_coords, field="g_z")
 bouguer = df['Gravity'].values - result
 df['Bouguer'] = bouguer
 
-# ---- Plot the density mask ----
-fig, ax = plt.subplots(figsize=(10, 8))
-
-# 1) Plot the density grid
-c = ax.pcolormesh(
-    E, N, density,
-    shading='auto',
-    cmap='viridis'            # you can change colormap as you like
-)
-
-# 2) Overlay the region boundary in red
-region_gdf.boundary.plot(
-    ax=ax,
-    edgecolor='red',
-    linewidth=1.5,
-    label='Maciços Alcalinos boundary'
-)
-
-# 3) Add colorbar and labels
-plt.colorbar(c, ax=ax, label='Density (kg/m³)')
-ax.set_xlabel('Easting (m)')
-ax.set_ylabel('Northing (m)')
-ax.set_title('Mask of Maciços: 2570 kg/m³ inside, 2670 kg/m³ outside')
-ax.legend()
-
-plt.tight_layout()
-plt.show()
-
 # Setting up the Hyperparameters to adjust the Bouguer values
 eqs_first_guess = hm.EquivalentSources(depth=1, damping=1)
 eqs_first_guess.fit(obs_coords, df['Bouguer'].values)
