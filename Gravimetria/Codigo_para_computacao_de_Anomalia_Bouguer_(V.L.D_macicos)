@@ -47,10 +47,11 @@ def tif_to_dataframe(elevation_tif_path, gravity_tif_path):
                 'Gravity': gravities
             })
 
-elevation_tif_path = r"C:\Users\lzlag\Documents\AOI Resende (Elevation).tif"
+# Loading the TIFF files
+elevation_tif_path = r"C:\Users\lzlag\Documents\AOI Resende (Topography+).tif"
 gravity_tif_path   = r"C:\Users\lzlag\Documents\AOI Resende(Free-Air).tif"
 df = tif_to_dataframe(elevation_tif_path, gravity_tif_path)
-
+ 
 # Applying the projection
 input_crs = 'EPSG:4326'
 crs_custom, projCoords = geographic2projected(
@@ -63,7 +64,7 @@ df = df.assign(
 )
 
 # Reading the Topography file
-topography_file = r"C:\Users\lzlag\Documents\AOI Resende (Elevation).tif"
+topography_file = r"C:\Users\lzlag\Documents\AOI Resende (Topography+).tif"
 with rasterio.open(topography_file) as src:
     data_topo = src.read(1)
     lon_min, lat_min, lon_max, lat_max = src.bounds
@@ -87,7 +88,6 @@ grid = xr.DataArray(
 
 # Projecting the topography to plain coordinates 
 transformer = Transformer.from_crs("EPSG:4326", crs_custom, always_xy=True)
-
 def proj_func(lon, lat, inverse=False):
     if inverse:
         return transformer.transform(lon, lat, direction=TransformDirection.INVERSE)
@@ -96,40 +96,29 @@ def proj_func(lon, lat, inverse=False):
 
 topo_plain = vd.project_grid(grid, projection=proj_func)
 
-# --- Region-specific density integration (applied at line 129) ---
-
-# Load and reproject your region polygon
+# Creating the V.L.D boundaries
 region_gdf = gpd.read_file(r"C:\Users\lzlag\Documents\Maciços Alcalinos.shp").to_crs(crs_custom)
 region_poly = region_gdf.unary_union
 
-# Build a 2D grid of prism centers matching topo_plain
+# Building a 2D grid of prism centers matching topo_plain
 easting = topo_plain.coords['easting'].values
 northing = topo_plain.coords['northing'].values
 E, N = np.meshgrid(easting, northing)
 
-# Flatten grid to test point-in-polygon
+# Creating the shapefile mask
 points = gpd.GeoDataFrame(
     geometry=[Point(x, y) for x, y in zip(E.ravel(), N.ravel())],
     crs=crs_custom
 )
 inside_mask = points.within(region_poly).values
 
-# Define densities: inside vs. outside region
+# Defining the different density values
 d_inside  = 2570
 d_outside = 2670
 density_flat = np.where(inside_mask, d_inside, d_outside)
 density = density_flat.reshape(E.shape)
 
-# Plot the density grid for verification
-plt.figure(figsize=(8, 6))
-plt.pcolormesh(E, N, density, shading='auto')
-plt.colorbar(label='Density (kg/m³)')
-plt.xlabel('Easting (m)')
-plt.ylabel('Northing (m)')
-plt.title('Density Map')
-plt.show()
-
-# Build the prism layer with region-specific densities
+# Building the prism layer 
 surface = topo_plain.values
 topo_prisms = hm.prism_layer(
     coordinates=(E, N),
@@ -138,7 +127,8 @@ topo_prisms = hm.prism_layer(
     properties={'density': density}
 )
 df
-# Compute the Bouguer at observation points
+
+# Computeing the Bouguer at observation points
 obs_coords = (
     df['Easting'].values,   
     df['Northing'].values,   
