@@ -2,12 +2,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Set variables
-a = 1.0             
-omega = 2 * np.pi   
-phi0 = np.pi / 4   
+a = 1.0
+omega = 2 * np.pi
+phi0 = np.pi / 4
 
 # Time intervals
-t = np.linspace(0, 2, 1000)  # Tempo de 0 a 2 segundos
+t = np.linspace(0, 2, 1000) 
+
 
 # Defining the SMH
 y = a * np.cos(omega * t + phi0)
