@@ -1,0 +1,23 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Set variables
+a = 1.0             
+omega = 2 * np.pi   
+phi0 = np.pi / 4   
+
+# Time intervals
+t = np.linspace(0, 2, 1000)  # Tempo de 0 a 2 segundos
+
+# Defining the SMH
+y = a * np.cos(omega * t + phi0)
+
+# Plotting the results
+plt.figure(figsize=(10, 4))
+plt.plot(t, y, label=r'$a \cdot \cos(\omega t + \phi_0)$')
+plt.title('Wave Behaviour')
+plt.xlabel('Time (s)')
+plt.ylabel('Amplitude')
+plt.grid(True)
+plt.legend()
+plt.show()
