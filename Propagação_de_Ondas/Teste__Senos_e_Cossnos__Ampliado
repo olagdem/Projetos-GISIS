@@ -12,7 +12,7 @@ t = np.linspace(0, 2, 1000)  # de 0 a 2 segundos
 # Defining the function
 x_t = 2 * A * np.cos((delta_w / 2) * t) * np.cos(w * t)
 
-# Plot
+# Plotting the results
 plt.figure(figsize=(10, 5))
 plt.plot(t, x_t, label=r'$x(t) = 2A \cos\left(\frac{\Delta \omega}{2} t\right) \cos(\omega t)$')
 plt.title('Gráfico da função x(t)')
