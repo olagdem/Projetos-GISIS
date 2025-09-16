@@ -9,7 +9,6 @@ phi0 = np.pi / 4
 # Time intervals
 t = np.linspace(0, 2, 1000) 
 
-
 # Defining the SMH
 y = a * np.cos(omega * t + phi0)
 
