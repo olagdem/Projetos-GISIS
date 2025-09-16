@@ -9,7 +9,7 @@ w = 10
 # Time intervals
 t = np.linspace(0, 2, 1000)  # de 0 a 2 segundos
 
-# Função x(t)
+# Defining the function
 x_t = 2 * A * np.cos((delta_w / 2) * t) * np.cos(w * t)
 
 # Plot
