@@ -3,8 +3,12 @@ import matplotlib.pyplot as plt
 
 # Set variables
 A = 1
-w2 = 100
-w1 = 10
+f2 = 15
+f1 = 1
+
+# Rad-F
+w1 = 2*np.pi*f1    
+w2 = 2*np.pi*f2
 
 # Time intervals
 t = np.linspace(0, 2, 1000)  
@@ -13,24 +17,30 @@ dt = t[1] - t[0]
 # Defining the function
 x_t = 2 * A * np.cos((w1 / 2) * t) * np.cos(w2 * t)
 
-#FFT 
-X=np.fft.fft(x_t)
-f= np.fft.fftfreq(len(t), d=dt)
-mask = f>0
+# FFT
+X = np.fft.fft(x_t)
+f = np.fft.fftfreq(len(t), d=dt)  # in Hz
+mask = f > 0
 
-# Plotting the results
-plt.figure(figsize=(10, 5))
-plt.plot(t, x_t,)
-plt.title('Gráfico da função x(t)')
-plt.xlabel('Tempo (t)')
-plt.ylabel('x(t)')
+# Normalizing the function
+X_mag = (2 / len(t)) * np.abs(X)
+
+# Time-Plot
+plt.figure(figsize=(10, 4))
+plt.plot(t, x_t)
+plt.title("Time-Domain Signal x(t)")
+plt.xlabel("Time (s)")
+plt.ylabel("x(t)")
 plt.grid(True)
+plt.tight_layout()
 plt.show()
 
-# Plot the frequencies 
-plt.figure(figsize=(10,5))
-plt.plot(f[mask], np.abs(X[mask]))
+# FK
+plt.figure(figsize=(10, 4))
+plt.plot(f[mask], X_mag[mask])
+plt.title("Frequency Spectrum of x(t)")
 plt.xlabel("F (Hz)")
-plt.ylabel("X[F]")
+plt.ylabel("F[X(t)]")
 plt.grid(True)
+plt.tight_layout()
 plt.show()
