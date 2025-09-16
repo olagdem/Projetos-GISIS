@@ -6,7 +6,7 @@ A = 1
 delta_w = 2
 w = 10
 
-# Tempo
+# Time intervals
 t = np.linspace(0, 2, 1000)  # de 0 a 2 segundos
 
 # Função x(t)
