@@ -1,1 +1,24 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Parâmetros
+A = 1
+delta_w = 2
+w = 10
+
+# Tempo
+t = np.linspace(0, 2, 1000)  # de 0 a 2 segundos
+
+# Função x(t)
+x_t = 2 * A * np.cos((delta_w / 2) * t) * np.cos(w * t)
+
+# Plot
+plt.figure(figsize=(10, 5))
+plt.plot(t, x_t, label=r'$x(t) = 2A \cos\left(\frac{\Delta \omega}{2} t\right) \cos(\omega t)$')
+plt.title('Gráfico da função x(t)')
+plt.xlabel('Tempo (t)')
+plt.ylabel('x(t)')
+plt.legend()
+plt.grid(True)
+plt.show()
 
